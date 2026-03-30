@@ -1,9 +1,8 @@
 # ==========================================
 # 📂 檔案名稱： Financial_API.py (黃金公式絕對鎖死版)
 # 💡 更新內容： 
-#    1. 調整主畫面左右比例，拉寬左側戰情區，徹底解決數據小數點被截斷的問題。
-#    2. Altair 直條圖圖例 (Legend) 設定為雙列顯示 (columns=5)。
-#    3. 移除畫面下方的月營收報告，保持版面極簡。
+#    1. 嚴格鎖定圖表「紅色預估標竿」，使其為年初靜態基準 (Q1=Q2)，全年不變！
+#    2. 保留 EPS 等數據卡片的「動態滾動式推估」邏輯。
 # ==========================================
 
 import streamlit as st
@@ -52,7 +51,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-MASTER_GSHEET_URL = "https://docs.google.com/spreadsheets/d/1s4dIaZb4FLOHrn_hwreHPkDKSobgtlaqFJjnsQiO1F4/edit"
+MASTER_GSHEET_URL = "https://docs.google.com/spreadsheets/d/1vsqhH2i8aoRnBwPJ4BJ1eL2vQYGCkqabgG08f8P2A2c/edit"
 
 def force_rerun():
     try:
@@ -116,16 +115,18 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
     ratio_q3 = sum_q3_history / sum_q2_history if sum_q2_history > 0 else 1.0
     ratio_q4 = sum_q4_history / sum_q3_history if sum_q3_history > 0 else 1.0
 
+    # 🌟 靜態紅色標竿 (年初設定，全年不變)
     if rev_last_12 > 0:
         base_11_12_avg = (rev_last_11 + rev_last_12) / 2
     else:
         base_11_12_avg = (rev_last_10 + rev_last_11 + (rev_last_11 * 0.9)) / 3
         
     benchmark_q1_rev = (base_11_12_avg * 3) * ratio_q1 
-    benchmark_q2_rev = benchmark_q1_rev
+    benchmark_q2_rev = benchmark_q1_rev # Q1 = Q2 靜態標竿
     benchmark_q3_rev = benchmark_q2_rev * ratio_q3
     benchmark_q4_rev = benchmark_q3_rev * ratio_q4
 
+    # 🌟 動態推估 Q1
     if current_month <= 1: 
         dynamic_est_q1_rev = benchmark_q1_rev
         dynamic_base_avg = base_11_12_avg
@@ -170,6 +171,7 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
             dynamic_base_avg = base_11_12_avg
             formula_note = "動態EPS推估 (全無,用標竿)"
 
+    # 🌟 動態推估 Q2~Q4
     if current_month <= 3:
         dynamic_est_q2_rev = dynamic_est_q1_rev
     elif current_month == 4:
@@ -204,6 +206,7 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
     safe_base_rev = base_q_total_rev if base_q_total_rev > 0 else 1.0
     orig_profit_margin_factor = base_q_eps * (1 - (non_op_ratio / 100)) / safe_base_rev 
     
+    # 🌟 動態 EPS 運算
     est_q1_eps_baseline = dynamic_est_q1_rev * orig_profit_margin_factor
 
     if actual_q1_eps > 0:
@@ -271,7 +274,8 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
         "_known_qs": [round(actual_known_q1, 2), round(actual_known_q2, 2), 0, 0],
         "_known_q1_months": [round(max(0, sim_rev_1), 2), round(max(0, sim_rev_2), 2), round(max(0, sim_rev_3), 2)],
         "_known_q2_months": [round(max(0, rev_this_4), 2), round(max(0, rev_this_5), 2), round(max(0, rev_this_6), 2)],
-        "_total_est_qs": [round(benchmark_q1_rev, 2), round(dynamic_est_q2_rev, 2), round(benchmark_q3_rev, 2), round(benchmark_q4_rev, 2)]
+        # 💡 此處已鎖死為 benchmark_q2_rev (靜態)，確保圖表紅棒不受滾動影響
+        "_total_est_qs": [round(benchmark_q1_rev, 2), round(benchmark_q2_rev, 2), round(benchmark_q3_rev, 2), round(benchmark_q4_rev, 2)]
     }
 
 # ==========================================
@@ -753,7 +757,6 @@ if cached_data:
     else: t_vip, t_fin = st.tabs(["🎯 專屬戰略指揮", "🏦 金融存股雷達"]); t_radar = None
     
     with t_vip:
-        # 💡 變更點 1：將左邊比例拉寬到 1.2，右邊 1.0 (55% / 45%)，騰出空間給中間卡片
         c1, c2 = st.columns([1.2, 1.0])
         with c1:
             if st.button("🚀 執行戰略分析", type="primary", use_container_width=True):
@@ -808,7 +811,6 @@ if cached_data:
                                 safe_non_op = get_safe_float(row.get('最新業外佔比(%)', 0))
                                 
                                 st.markdown(f"#### 🏷️ 戰情核心指標")
-                                # 💡 變更點 2：內部卡片微調比例，給予中間開獎卡片更多顯示空間
                                 c_m1, c_m2, c_m3 = st.columns([1, 1.3, 1])
                                 
                                 with c_m1:
@@ -821,7 +823,6 @@ if cached_data:
                                     if actual_q1 > 0:
                                         delta_val = actual_q1 - base_q1
                                         delta_pct = (delta_val / abs(base_q1)) * 100 if base_q1 != 0 else 0
-                                        # 字串再精簡，絕對放得下！
                                         delta_str = f"{delta_val:.2f} ({delta_pct:+.1f}%)"
                                         st.metric(f"Q1 實際 (原估 {base_q1:.2f})", f"{actual_q1:.2f} 元", delta_str, delta_color="inverse")
                                     else:
@@ -871,7 +872,6 @@ if cached_data:
                             )
 
                             bars = base_chart.mark_bar().encode(
-                                # 💡 變更點 3：加入 columns=5，強制圖例折成兩行
                                 color=alt.Color('項目:N', legend=alt.Legend(title=None, orient="bottom", columns=5), 
                                                 scale=alt.Scale(
                                                     domain=["去年實際", "1月營收", "2月營收", "3月營收", "4月營收", "5月營收", "6月營收", "已公布", "預估標竿"], 
