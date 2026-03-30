@@ -10,7 +10,7 @@ import json
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # 💡 適配 1：換上最新的純種 Google Sheet 網址
-MASTER_GSHEET_URL = "https://docs.google.com/spreadsheets/d/1vsqhH2i8aoRnBwPJ4BJ1eL2vQYGCkqabgG08f8P2A2c/edit"
+MASTER_GSHEET_URL = "https://docs.google.com/spreadsheets/d/1s4dIaZb4FLOHrn_hwreHPkDKSobgtlaqFJjnsQiO1F4/edit"
 
 def get_gspread_client():
     # 💡 適配 2：換上 GitHub Secrets 專用的金鑰名稱
