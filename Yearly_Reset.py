@@ -6,7 +6,7 @@ import time
 # ==========================================
 # ⚙️ 設定區：請填入您的測試表單網址
 # ==========================================
-TEST_GSHEET_URL = "https://docs.google.com/spreadsheets/d/1NsbE90kb1rwvYQ--6kBGlzH8KK-0sMp4/edit"
+TEST_GSHEET_URL = "https://docs.google.com/spreadsheets/d/174Aq8nlEXqgGX2IbeancNqwp_sppi-dsquP8kBIkELc/edit"
 CREDENTIALS_NAME = "GOOGLE_CREDENTIALS" # 讀取您 GitHub Actions 裡的金鑰
 
 def yearly_rollover_mission():
