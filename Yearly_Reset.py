@@ -6,7 +6,7 @@ import os
 # ==========================================
 # ⚙️ 設定區：測試表單網址
 # ==========================================
-TEST_GSHEET_URL = "https://docs.google.com/spreadsheets/d/174Aq8nLEXqgGX2lbeancNqwp_sppi-dsquP8kBlkELc/edit"
+TEST_GSHEET_URL = "https://docs.google.com/spreadsheets/d/174Aq8nlEXqgGX2IbeancNqwp_sppi-dsquP8kBIkELc/edit?usp=sharing"
 
 def get_gspread_client():
     # 讀取 GitHub Secrets 中的金鑰
