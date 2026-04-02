@@ -1,7 +1,9 @@
 # ==========================================
 # 📂 檔案名稱： update_finance.py (精準校準版 專屬五效全能機器人)
 # 💡 任務： 每日自動更新 EPS/Q4 + 股價 + PBR/PER/殖利率
-# ⚠️ 修正： 嚴格鎖定「每股盈餘」字眼，絕不誤扣「單季營收」導致負數！
+# ⚠️ 修正： 
+#    1. 打通上櫃 (OTC) 公司代號專屬通道
+#    2. 完整補齊 Q4 營收、營益、業外損益推算 (年減前三季，自動轉為億)
 # ==========================================
 
 import os
@@ -14,7 +16,7 @@ import json
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 🌟 精準校準版的專屬 Google Sheet 網址
-MASTER_GSHEET_URL = "https://docs.google.com/spreadsheets/d/1s4dIaZb4FLOHrn_hwreHPkDKSobgtlaqFJjnsQiO1F4/edit?usp=sharing"
+MASTER_GSHEET_URL = "https://docs.google.com/spreadsheets/d/1s4dIaZb4FLOHrn_hwreHPkDKSobgtlaqFJjnsQiO1F4/edit"
 
 def get_gspread_client():
     key_data = os.environ.get("GOOGLE_CREDENTIALS") or os.environ.get("GOOGLE_KEY_JSON")
@@ -54,10 +56,12 @@ def fetch_and_update():
 
     stats = {}
     for item in all_detail:
-        code = str(item.get('公司代號', item.get('co_id', ''))).strip()
+        # 🔥 修正上櫃代號抓不到的問題：加入 SecuritiesCompanyCode
+        code = str(item.get('公司代號', item.get('co_id', item.get('SecuritiesCompanyCode', '')))).strip()
         if not code: continue
-        y = str(item.get('年度'))
-        q = str(item.get('季別'))
+        
+        y = str(item.get('年度', item.get('Year', '')))
+        q = str(item.get('季別', item.get('Quarter', '')))
         
         if y == "114" and q == "4":
             revenue, op_profit, non_op_income, annual_eps = 0.0, 0.0, 0.0, 0.0
@@ -140,19 +144,25 @@ def fetch_and_update():
         h = data[0]
         i_c = next((i for i, x in enumerate(h) if str(x).strip() in ["代號", "股票代號", "證券代號"]), -1)
         i_price = next((i for i, x in enumerate(h) if str(x).strip() in ["成交", "股價", "最新股價", "收盤價"]), -1)
-        
         i_pbr = next((i for i, x in enumerate(h) if "淨值比" in str(x) or "PBR" in str(x).upper()), -1)
         i_per = next((i for i, x in enumerate(h) if "本益比" in str(x) or "PER" in str(x).upper()), -1)
         i_yield = next((i for i, x in enumerate(h) if "殖利率" in str(x) and "年化" not in str(x)), -1)
         
-        # 🌟 核心修復：嚴格鎖定「單季每股盈餘」，絕對不能去抓到「單季營收」！
-        i_q1 = next((i for i, x in enumerate(h) if "25Q1" in str(x).upper() and "盈餘" in str(x)), -1)
-        i_q2 = next((i for i, x in enumerate(h) if "25Q2" in str(x).upper() and "盈餘" in str(x)), -1)
-        i_q3 = next((i for i, x in enumerate(h) if "25Q3" in str(x).upper() and "盈餘" in str(x)), -1)
+        # 🌟 設定輔助函數：精準抓取欄位索引
+        def get_idx(year_q, keyword):
+            return next((i for i, x in enumerate(h) if year_q in str(x).upper() and keyword in str(x)), -1)
+
+        # EPS 家族
+        i_q1_eps, i_q2_eps, i_q3_eps, i_q4_eps_target = get_idx("25Q1", "盈餘"), get_idx("25Q2", "盈餘"), get_idx("25Q3", "盈餘"), get_idx("25Q4", "盈餘")
+        # 營收 家族
+        i_q1_rev, i_q2_rev, i_q3_rev, i_q4_rev_target = get_idx("25Q1", "營收"), get_idx("25Q2", "營收"), get_idx("25Q3", "營收"), get_idx("25Q4", "營收")
+        # 營益 家族
+        i_q1_op, i_q2_op, i_q3_op, i_q4_op_target = get_idx("25Q1", "營益"), get_idx("25Q2", "營益"), get_idx("25Q3", "營益"), get_idx("25Q4", "營益")
+        # 業外 家族
+        i_q1_nop, i_q2_nop, i_q3_nop, i_q4_nop_target = get_idx("25Q1", "業外"), get_idx("25Q2", "業外"), get_idx("25Q3", "業外"), get_idx("25Q4", "業外")
         
-        i_op_m_target = next((i for i, x in enumerate(h) if "最新單季營益率" in str(x)), -1)
-        i_q4_target = next((i for i, x in enumerate(h) if "25Q4單季每股盈餘" in str(x)), -1)
         i_accum_eps_target = next((i for i, x in enumerate(h) if "最新累季每股盈餘" in str(x)), -1)
+        i_op_m_target = next((i for i, x in enumerate(h) if "最新單季營益率" in str(x)), -1)
         i_nop_target = next((i for i, x in enumerate(h) if "最新單季業外損益佔稅前淨利" in str(x)), -1)
         
         if i_c == -1: continue
@@ -174,21 +184,49 @@ def fetch_and_update():
                 if i_yield != -1 and m.get('yield', 0) > 0:
                     cells.append(gspread.Cell(row=r_idx, col=i_yield+1, value=m['yield']))
             
-            # 【寫入 財報資料】
+            # 【寫入 財報資料 (Q4拆解計算)】
             if code in stats:
                 d = stats[code]
                 if i_accum_eps_target != -1:
                     cells.append(gspread.Cell(row=r_idx, col=i_accum_eps_target+1, value=d["annual_eps"]))
-                if i_q4_target != -1:
-                    # 這裡只會抓到真正的 EPS 去扣除了，不會再拿營收來扣！
-                    q1_eps = force_float(row[i_q1]) if i_q1 != -1 and i_q1 < len(row) else 0.0
-                    q2_eps = force_float(row[i_q2]) if i_q2 != -1 and i_q2 < len(row) else 0.0
-                    q3_eps = force_float(row[i_q3]) if i_q3 != -1 and i_q3 < len(row) else 0.0
-                    q4_eps_calculated = round(d["annual_eps"] - q1_eps - q2_eps - q3_eps, 2)
-                    cells.append(gspread.Cell(row=r_idx, col=i_q4_target+1, value=q4_eps_calculated))
+                
+                # 1. 結算 Q4 EPS
+                if i_q4_eps_target != -1:
+                    q1 = force_float(row[i_q1_eps]) if i_q1_eps != -1 and i_q1_eps < len(row) else 0.0
+                    q2 = force_float(row[i_q2_eps]) if i_q2_eps != -1 and i_q2_eps < len(row) else 0.0
+                    q3 = force_float(row[i_q3_eps]) if i_q3_eps != -1 and i_q3_eps < len(row) else 0.0
+                    q4_eps_calculated = round(d["annual_eps"] - q1 - q2 - q3, 2)
+                    cells.append(gspread.Cell(row=r_idx, col=i_q4_eps_target+1, value=q4_eps_calculated))
+                
+                # 2. 結算 Q4 營收 (將官方千元單位轉為億，除以 100000)
+                if i_q4_rev_target != -1:
+                    q1 = force_float(row[i_q1_rev]) if i_q1_rev != -1 and i_q1_rev < len(row) else 0.0
+                    q2 = force_float(row[i_q2_rev]) if i_q2_rev != -1 and i_q2_rev < len(row) else 0.0
+                    q3 = force_float(row[i_q3_rev]) if i_q3_rev != -1 and i_q3_rev < len(row) else 0.0
+                    q4_rev = round((d["revenue"] / 100000) - q1 - q2 - q3, 2)
+                    cells.append(gspread.Cell(row=r_idx, col=i_q4_rev_target+1, value=q4_rev))
+
+                # 3. 結算 Q4 營益 (轉為億)
+                if i_q4_op_target != -1:
+                    q1 = force_float(row[i_q1_op]) if i_q1_op != -1 and i_q1_op < len(row) else 0.0
+                    q2 = force_float(row[i_q2_op]) if i_q2_op != -1 and i_q2_op < len(row) else 0.0
+                    q3 = force_float(row[i_q3_op]) if i_q3_op != -1 and i_q3_op < len(row) else 0.0
+                    q4_op = round((d["op_profit"] / 100000) - q1 - q2 - q3, 2)
+                    cells.append(gspread.Cell(row=r_idx, col=i_q4_op_target+1, value=q4_op))
+
+                # 4. 結算 Q4 業外損益 (轉為億)
+                if i_q4_nop_target != -1:
+                    q1 = force_float(row[i_q1_nop]) if i_q1_nop != -1 and i_q1_nop < len(row) else 0.0
+                    q2 = force_float(row[i_q2_nop]) if i_q2_nop != -1 and i_q2_nop < len(row) else 0.0
+                    q3 = force_float(row[i_q3_nop]) if i_q3_nop != -1 and i_q3_nop < len(row) else 0.0
+                    q4_nop = round((d["non_op_income"] / 100000) - q1 - q2 - q3, 2)
+                    cells.append(gspread.Cell(row=r_idx, col=i_q4_nop_target+1, value=q4_nop))
+
+                # 5. 計算最新單季營益率 & 業外佔比
                 if d["revenue"] != 0 and i_op_m_target != -1:
                     op_margin = round((d["op_profit"] / d["revenue"]) * 100, 2)
                     cells.append(gspread.Cell(row=r_idx, col=i_op_m_target+1, value=op_margin))
+                
                 pre_tax_profit = d["non_op_income"] + d["op_profit"]
                 if pre_tax_profit != 0 and i_nop_target != -1:
                     non_op_ratio = round((d["non_op_income"] / pre_tax_profit) * 100, 2)
