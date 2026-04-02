@@ -131,7 +131,7 @@ def fetch_and_update():
         print(f"❌ Google 表單連線失敗: {e}")
         return
     
-    target_sheets = [ws for ws in spreadsheet.worksheets() if any(n in ws.title for n in ["當年度表", "個股總表", "總表", "金融股"])]
+    target_sheets = [ws for ws in spreadsheet.worksheets() if any(n in ws.title for n in ["當年度表", "個股總表", "歷史表單", "金融股"])]
     
     for ws in target_sheets:
         data = ws.get_all_values()
