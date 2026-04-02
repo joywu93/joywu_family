@@ -1,8 +1,9 @@
 # ==========================================
-# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版)
+# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 殖利率純淨版)
 # 💡 更新內容： 
 #    1. 官方營收更新雷達升級：看到「月增」或「年增」直接填入最新數據，不再強制綁定月份前綴。
 #    2. 移除會自動修改表單標題的舊設定，保護您精心排版的 Google Sheet 格式。
+#    3. 🔥 殖利率公式修正：強制只使用「預估 EPS」推算的股利，根除舊年度殘留高配息的干擾！
 # ==========================================
 
 import streamlit as st
@@ -256,16 +257,16 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
             calc_payout_ratio = raw_payout
             payout_note = "🕒 歷史配息率"
             
+    # 🔥 核心修正：強制只使用「預估 EPS」算出來的股利，根除舊年度大股利的干擾！
     est_annual_dividend = est_full_year_eps * (calc_payout_ratio / 100)
-    forward_yield = (max(declared_div, est_annual_dividend) / current_price) * 100 if current_price > 0 else 0
+    forward_yield = (est_annual_dividend / current_price) * 100 if current_price > 0 else 0
 
     return {
         "股票名稱": name, "最新股價": round(current_price, 2), 
         "_logic_note": formula_note, "_payout_note": "", 
         "當季預估均營收": round(dynamic_base_avg, 2), "季成長率(YoY)%": round(q1_yoy, 2),
         "前瞻殖利率(%)": round(forward_yield, 2), 
-        "預估今年Q1_EPS": round(est_q1_eps_baseline, 2), 
-        "實際Q1_EPS": actual_q1_eps, 
+        "預估今年Q1_EPS": round(est_q1_eps_display, 2), 
         "預估今年度_EPS": round(est_full_year_eps, 2), "最新累季EPS": acc_eps, "本益比(PER)": round(est_per, 2),         
         "預估年成長率(%)": round(est_annual_yoy, 2), "運算配息率(%)": calc_payout_ratio, "配息基準": payout_note,
         "最新業外佔比(%)": round(non_op_ratio, 2), 
@@ -368,8 +369,9 @@ def financial_strategic_model(name, code, current_month, data, simulated_month, 
             payout_ratio = raw_payout
             payout_note = "🕒 表單歷史配息率"
             
+    # 🔥 核心修正：強制只使用「預估 EPS」算出來的股利，根除舊年度大股利的干擾！
     est_dividend = est_fy_eps * (payout_ratio / 100)
-    forward_yield = (max(f_declared_div, est_dividend) / current_price) * 100 if current_price > 0 else 0
+    forward_yield = (est_dividend / current_price) * 100 if current_price > 0 else 0
         
     return {
         "股票名稱": f"{code} {data['name']}", 
@@ -678,18 +680,14 @@ if is_admin:
                             h = data[0]
                             target_col_idx, mom_col_idx, yoy_col_idx, code_col_idx = -1, -1, -1, -1
                             
-                            # 🎯 修正版：更聰明的欄位雷達
                             for i, header in enumerate(h):
                                 clean_h = str(header).replace('\n', '').replace(' ', '').replace('\r', '').strip()
                                 if "代號" in clean_h: 
                                     code_col_idx = i + 1
-                                # 只要看到「月增」，不管有沒有月份，直接鎖定！
                                 elif "月增" in clean_h: 
                                     mom_col_idx = i + 1
-                                # 只要看到「年增」，不管有沒有月份，直接鎖定！
                                 elif "年增" in clean_h: 
                                     yoy_col_idx = i + 1
-                                # 尋找指定的營收月份 (例如 26M02)，且排除增減率欄位
                                 elif tm_h in clean_h and "營收" in clean_h and "增" not in clean_h: 
                                     target_col_idx = i + 1
                                     
@@ -701,9 +699,7 @@ if is_admin:
                                     if code in row_map:
                                         row_idx = row_map[code]
                                         if pd.notna(row['當月營收']): cells_to_update.append(gspread.Cell(row=row_idx, col=target_col_idx, value=round(row['當月營收'] / 100000, 2)))
-                                        # 更新最新月增率
                                         if mom_col_idx != -1 and pd.notna(row['月增率']): cells_to_update.append(gspread.Cell(row=row_idx, col=mom_col_idx, value=row['月增率']))
-                                        # 更新最新年增率
                                         if yoy_col_idx != -1 and pd.notna(row['年增率']): cells_to_update.append(gspread.Cell(row=row_idx, col=yoy_col_idx, value=row['年增率']))
                                 
                                 if cells_to_update: ws.update_cells(cells_to_update, value_input_option='USER_ENTERED'); cnt += 1
@@ -841,7 +837,7 @@ if cached_data:
                                     st.metric("本益比 (PER)", f"{safe_per:.2f}")
                                     st.metric("預估年成長率", f"{safe_grow:.2f} %")
                                 
-                                st.markdown(f"**📉 業外佔比:** {safe_non_op:.2f}% ｜ **📈 合約負債:** {liab_value:.2f}億 ({liab_qoq:.2f}%)")
+                                st.markdown(f"📉 業外佔比: {safe_non_op:.2f}% ｜ 📈 合約負債: {liab_value:.2f}億 ({liab_qoq:.2f}%)")
 
                                 if is_admin:
                                     with st.expander("📝 點此查看預估邏輯"): st.write(str(row.get('_logic_note', '無紀錄')))
