@@ -1,10 +1,9 @@
 # ==========================================
-# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 營收動能顯影版)
+# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 終極防斷防干擾版)
 # 💡 更新內容： 
-#    1. 🔥 Q1抗春節干擾模型：1月單獨用(1月+基準x2)；1&2月合併用((1+2)x1.5)，杜絕過年效應！
-#    2. 雷達條件加入備忘錄：方便晚輩日後維護與理解底層篩選邏輯。
-#    3. 殖利率公式終極修正：只信預估EPS，且若預估EPS < 0則股利與殖利率強制歸零！
-#    4. 🌟 M%/Y% 動能顯影：強制抓取單月 M/Y%，並在 UI 介面以「紅綠變色」直覺顯示！
+#    1. 🛡️ 程式碼極致瘦身：所有長串文字強制換行，100% 杜絕 SyntaxError 截斷報錯！
+#    2. 🎯 M/Y% 終極鎖定：自動排除「累計」字眼，只要有「月增/年增」一律精準抓取！
+#    3. 🔥 殖利率公式：只信預估EPS，且若預估EPS < 0則股利與殖利率強制歸零！
 # ==========================================
 
 import streamlit as st
@@ -69,7 +68,10 @@ def clear_cache_and_session():
 def get_gspread_client():
     if "GOOGLE_CREDENTIALS" not in st.secrets: raise ValueError("找不到 Google 金鑰")
     key_data = st.secrets["GOOGLE_CREDENTIALS"]
-    creds = Credentials.from_service_account_info(json.loads(key_data) if isinstance(key_data, str) else dict(key_data), scopes=['https://www.googleapis.com/auth/spreadsheets'])
+    creds = Credentials.from_service_account_info(
+        json.loads(key_data) if isinstance(key_data, str) else dict(key_data), 
+        scopes=['https://www.googleapis.com/auth/spreadsheets']
+    )
     return gspread.authorize(creds)
 
 def get_realtime_price(code, default_price):
@@ -456,7 +458,6 @@ def fetch_gsheet_data_v182():
                 
                 def v(c_name, d=0.0):
                     if not c_name or pd.isna(row[c_name]): return d
-                    # 🔥 修復百分比符號干擾：將 % 也替換掉，確保文字能轉為純數字
                     val_str = str(row[c_name]).replace(',', '').replace('%', '').strip()
                     if not val_str or val_str.lower() in ['-', 'nan', 'inf', '-inf', 'infinity', '-infinity', '#n/a', 'n/a', '#div/0!']: return d
                     try: 
@@ -515,8 +516,8 @@ def fetch_gsheet_data_v182():
                     "price": v(get_col("成交", ex=["量", "值", "比"]) or get_col("股價", ex=["比", "淨值"])), 
                     "acc_eps": v(get_col("最新累季每股盈餘") or get_col("累季", "盈餘")),
                     "contract_liab": v(get_col("合約負債", ex=["季增"])), "contract_liab_qoq": v(get_col("合約負債季增") or get_col("季增", "負債")), "declared_div": v(get_col("合計股利")),
-                    "latest_mom": v(get_col("M%") or get_col("月增", "單月")),
-                    "latest_yoy": v(get_col("Y%") or get_col("年增", "單月"))
+                    "latest_mom": v(get_col("M%") or get_col("月增", ex=["累計"])), # 🔥 排除累計，精準鎖定單月
+                    "latest_yoy": v(get_col("Y%") or get_col("年增", ex=["累計"]))  # 🔥 排除累計，精準鎖定單月
                 }
 
                 if code not in db:
@@ -685,14 +686,14 @@ if is_admin:
                             h = data[0]
                             target_col_idx, mom_col_idx, yoy_col_idx, code_col_idx = -1, -1, -1, -1
                             
-                            # 🔥 強化標題鎖定：強制鎖定包含「單月」及「增」的欄位，或 M%/Y% 標題，避免找錯格子
                             for i, header in enumerate(h):
                                 clean_h = str(header).replace('\n', '').replace(' ', '').replace('\r', '').strip().upper()
                                 if "代號" in clean_h: 
                                     code_col_idx = i + 1
-                                elif ("單月" in clean_h and "月增" in clean_h) or "M%" in clean_h: 
+                                # 🔥 排除累計字眼，確保抓到真正的「月增」與「年增」
+                                elif ("月增" in clean_h and "累計" not in clean_h) or "M%" in clean_h: 
                                     mom_col_idx = i + 1
-                                elif ("單月" in clean_h and "年增" in clean_h) or "Y%" in clean_h: 
+                                elif ("年增" in clean_h and "累計" not in clean_h) or "Y%" in clean_h: 
                                     yoy_col_idx = i + 1
                                 elif tm_h in clean_h and "營收" in clean_h and "增" not in clean_h: 
                                     target_col_idx = i + 1
@@ -708,12 +709,12 @@ if is_admin:
                                         if mom_col_idx != -1 and pd.notna(row['月增率']): cells_to_update.append(gspread.Cell(row=row_idx, col=mom_col_idx, value=row['月增率']))
                                         if yoy_col_idx != -1 and pd.notna(row['年增率']): cells_to_update.append(gspread.Cell(row=row_idx, col=yoy_col_idx, value=row['年增率']))
                                 
-                                # 🔥 自動將這兩欄改名為「最新單月營收M% / 最新單月營收Y%」，保證下次絕不找錯
+                                # 🔥 更新並自動改名為標準標題，不再找錯
                                 if mom_col_idx != -1: cells_to_update.append(gspread.Cell(row=1, col=mom_col_idx, value="最新單月營收M%"))
                                 if yoy_col_idx != -1: cells_to_update.append(gspread.Cell(row=1, col=yoy_col_idx, value="最新單月營收Y%"))
                                 
                                 if cells_to_update: ws.update_cells(cells_to_update, value_input_option='USER_ENTERED'); cnt += 1
-                        if cnt > 0: status.update(label=f"🎉 營收成功寫入 {cnt} 張分頁！並已自動正名 M%/Y% 標題！", state="complete", expanded=False); st.cache_data.clear(); st.balloons()
+                        if cnt > 0: status.update(label=f"🎉 營收成功寫入 {cnt} 張分頁！", state="complete", expanded=False); st.cache_data.clear(); st.balloons()
                         else: status.update(label=f"⚠️ 無法更新", state="error", expanded=True)
             except Exception as e: status.update(label="任務中斷", state="error", expanded=True); st.error(e)
 
@@ -729,22 +730,19 @@ def render_dataframe(df_source, is_finance=False, is_single=False):
             df["股票名稱"] = df["股票名稱"].astype(str).str.strip()
             df = df.drop_duplicates(subset=["股票名稱"], keep='first')
             
-        # 🔥 在總表中新增顯示最新單月 M%/Y%
+        # 🔥 程式碼徹底瘦身：所有長清單強制斷行，杜絕 SyntaxError 截斷報錯！
         if is_finance: 
-            cols = [
-                "股票名稱", "最新股價", "PBR(股價淨值比)", "前瞻殖利率(%)", 
-                "近10年平均合計殖利率(%)", "前瞻PER", "原始PER", "預估今年Q1_EPS", 
-                "實際Q1_EPS", "預估今年度_EPS", "運算配息率(%)", "配息基準", 
-                "當季預估均營收(億)", "最新單月營收M%", "最新單月營收Y%"
-            ]
+            cols = ["股票名稱", "最新股價", "PBR(股價淨值比)", "前瞻殖利率(%)"]
+            cols += ["近10年平均合計殖利率(%)", "前瞻PER", "原始PER", "預估今年Q1_EPS"]
+            cols += ["實際Q1_EPS", "預估今年度_EPS", "運算配息率(%)", "配息基準"]
+            cols += ["當季預估均營收(億)", "最新單月營收M%", "最新單月營收Y%"]
         else: 
-            cols = [
-                "股票名稱", "最新股價", "當季預估均營收", "最新單月營收M%", "最新單月營收Y%", 
-                "季成長率(YoY)%", "前瞻殖利率(%)", "預估今年Q1_EPS", "實際Q1_EPS", 
-                "預估今年度_EPS", "最新累季EPS", "本益比(PER)", "預估年成長率(%)", 
-                "運算配息率(%)", "最新業外佔比(%)", "配息基準", "最新季度流動合約負債(億)", 
-                "最新季度流動合約負債季增(%)"
-            ]
+            cols = ["股票名稱", "最新股價", "當季預估均營收", "最新單月營收M%"]
+            cols += ["最新單月營收Y%", "季成長率(YoY)%", "前瞻殖利率(%)"]
+            cols += ["預估今年Q1_EPS", "實際Q1_EPS", "預估今年度_EPS", "最新累季EPS"]
+            cols += ["本益比(PER)", "預估年成長率(%)", "運算配息率(%)"]
+            cols += ["最新業外佔比(%)", "配息基準", "最新季度流動合約負債(億)"]
+            cols += ["最新季度流動合約負債季增(%)"]
             
         df = df[[c for c in cols if c in df.columns]]
         for c in df.columns:
@@ -978,8 +976,23 @@ if cached_data:
                 
             if st.button("📡 全市場掃描", type="primary"):
                 with st.spinner("極速掃描中..."):
-                    exclude_str = '1316,1436,1438,1439,1442,1453,1456,1472,1805,1808,2442,2501,2504,2505,2506,2509,2511,2515,2516,2520,2524,2527,2528,2530,2534,2535,2536,2537,2538,2539,2540,2542,2543,2545,2546,2547,2548,2596,2597,2718,2923,3052,3056,3188,3266,3489,3512,3521,3703,4113,4416,4907,5206,5213,5324,5455,5508,5511,5512,5514,5515,5516,5519,5520,5521,5522,5523,5525,5529,5531,5533,5534,5543,5546,5547,5548,6171,6177,6186,6198,6212,6219,6264,8080,8424,9906,9946,2880,2881,2882,2883,2884,2885,2886,2887,2889,2890,2891,2892,5880,2816,2832,2850,2851,2852,2867,5878,2801,2812,2820,2834,2836,2838,2845,2849,2897,5876,6016,6020,2855,6015,6005,6026,6024,6023,6021,5864'
-                    exclude_codes = set(exclude_str.split(','))
+                    
+                    # 🔥 避開 SyntaxError: 長清單文字安全寫法
+                    ex_list = ["1316","1436","1438","1439","1442","1453","1456","1472","1805","1808"]
+                    ex_list += ["2442","2501","2504","2505","2506","2509","2511","2515","2516","2520"]
+                    ex_list += ["2524","2527","2528","2530","2534","2535","2536","2537","2538","2539"]
+                    ex_list += ["2540","2542","2543","2545","2546","2547","2548","2596","2597","2718"]
+                    ex_list += ["2923","3052","3056","3188","3266","3489","3512","3521","3703","4113"]
+                    ex_list += ["4416","4907","5206","5213","5324","5455","5508","5511","5512","5514"]
+                    ex_list += ["5515","5516","5519","5520","5521","5522","5523","5525","5529","5531"]
+                    ex_list += ["5533","5534","5543","5546","5547","5548","6171","6177","6186","6198"]
+                    ex_list += ["6212","6219","6264","8080","8424","9906","9946","2880","2881","2882"]
+                    ex_list += ["2883","2884","2885","2886","2887","2889","2890","2891","2892","5880"]
+                    ex_list += ["2816","2832","2850","2851","2852","2867","5878","2801","2812","2820"]
+                    ex_list += ["2834","2836","2838","2845","2849","2897","5876","6016","6020","2855"]
+                    ex_list += ["6015","6005","6026","6024","6023","6021","5864"]
+                    exclude_codes = set(ex_list)
+                    
                     kws = [k.strip() for k in re.split(r'[;,\s\t]+', ex_kws) if k.strip()]
                     res_list = []
                     for code, d in db_gen.items():
