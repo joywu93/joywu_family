@@ -1,5 +1,5 @@
 # ==========================================
-# 📂 檔案名稱： update_chips.py (籌碼搬運工)
+# 📂 檔案名稱： update_chips.py (籌碼搬運工 - 上櫃精準修復版)
 # 💡 任務：自動往回抓取 10 個「交易日」的上市/上櫃法人買賣超，並精準寫入表單！
 # ==========================================
 
@@ -11,7 +11,6 @@ import time
 from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
 
-# 您的 Google Sheet 網址
 MASTER_GSHEET_URL = "https://docs.google.com/spreadsheets/d/1s4dIaZb4FLOHrn_hwreHPkDKSobgtlaqFJjnsQiO1F4/edit"
 
 def get_gspread_client():
@@ -29,11 +28,8 @@ def fetch_10_days_chips():
     
     print("🚀 開始啟動籌碼雷達，往前推算 10 個交易日...")
 
-    # 最多往前找 30 天，確保能湊滿 10 個交易日 (避開連假)
     for _ in range(30):
         if valid_days >= 10: break
-        
-        # 六日直接跳過
         if current_date.weekday() >= 5:
             current_date -= timedelta(days=1)
             continue
@@ -54,16 +50,14 @@ def fetch_10_days_chips():
                 day_has_data = True
                 fields = res_twse['fields']
                 c_idx = fields.index('證券代號')
-                # 動態尋找外資與投信的欄位
                 f_idx = next((i for i, f in enumerate(fields) if '外陸資買賣超股數' in f or '外資及陸資買賣超股數' in f), -1)
                 t_idx = next((i for i, f in enumerate(fields) if '投信買賣超股數' in f), -1)
 
                 if f_idx != -1 and t_idx != -1:
                     for row in res_twse['data']:
                         code = str(row[c_idx]).strip()
-                        # 官方單位是「股」，除以 1000 換算成「張」
-                        f_net = int(str(row[f_idx]).replace(',', '')) // 1000 
-                        t_net = int(str(row[t_idx]).replace(',', '')) // 1000
+                        f_net = int(str(row[f_idx]).replace(',', '').strip() or 0) // 1000 
+                        t_net = int(str(row[t_idx]).replace(',', '').strip() or 0) // 1000
 
                         if code not in chip_stats:
                             chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
@@ -74,16 +68,17 @@ def fetch_10_days_chips():
                         if t_net > 0: chip_stats[code]['t_days'] += 1
                         chip_stats[code]['t_vol'] += t_net
 
-            # 2. 抓取上櫃 (TPEx)
+            # 2. 抓取上櫃 (TPEx) - 🌟 修正欄位對應
             res_tpex = requests.get(tpex_url, headers=headers, timeout=10).json()
             if 'aaData' in res_tpex and len(res_tpex['aaData']) > 0:
                 day_has_data = True
                 for row in res_tpex['aaData']:
                     code = str(row[0]).strip()
                     try:
-                        if len(row) >= 14:
-                            f_net = int(str(row[4]).replace(',', '')) // 1000
-                            t_net = int(str(row[13]).replace(',', '')) // 1000
+                        if len(row) >= 12:
+                            # 🌟 上櫃欄位：8 是外資合計，11 是投信
+                            f_net = int(str(row[8]).replace(',', '').strip() or 0) // 1000
+                            t_net = int(str(row[11]).replace(',', '').strip() or 0) // 1000
                             
                             if code not in chip_stats:
                                 chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
@@ -102,7 +97,7 @@ def fetch_10_days_chips():
             print(f"✅ 成功獲取 {dt_str} 籌碼數據 (已收集 {valid_days}/10 天)")
             
         current_date -= timedelta(days=1)
-        time.sleep(2) # 禮貌性延遲，避免被證交所封鎖
+        time.sleep(2) 
         
     return chip_stats
 
@@ -118,7 +113,6 @@ def update_gsheet_chips(chip_stats):
         if not data: continue
         h = data[0]
         
-        # 尋找您剛建立的 4 個新欄位
         i_code = next((i for i, x in enumerate(h) if "代號" in str(x)), -1)
         i_t_days = next((i for i, x in enumerate(h) if "投信10日買天數" in str(x)), -1)
         i_t_vol = next((i for i, x in enumerate(h) if "投信10日買賣超" in str(x)), -1)
