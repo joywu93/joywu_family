@@ -1,8 +1,7 @@
 # ==========================================
-# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 籌碼徽章常駐版)
+# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 徽章濃縮佈局版)
 # 💡 更新內容： 
-#    1. 籌碼徽章「不再隱藏」：>=7天顯示紅橘色連買，<=3天顯示綠色倒貨，中間顯示灰藍色觀望。
-#    2. 保留所有營收 M/Y% 顯示與財報防呆功能。
+#    1. 籌碼徽章整併為單行，並移至營收 M/Y% 資訊下方，視覺更俐落。
 # ==========================================
 
 import streamlit as st
@@ -103,12 +102,10 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
     else: sim_rev_1, sim_rev_2, sim_rev_3 = rev_this_1, rev_this_2, rev_this_3
 
     actual_known_q1 = sum([v for v in [sim_rev_1, sim_rev_2, sim_rev_3] if v > 0])
-    
     ratio_q1 = ly_q1_rev / y1_q4_rev if y1_q4_rev > 0 else 1.0
     sum_q2_history = y1_q2_rev + ly_q2_rev
     sum_q3_history = y1_q3_rev + ly_q3_rev
     sum_q4_history = y1_q4_rev + ly_q4_rev
-    
     ratio_q3 = sum_q3_history / sum_q2_history if sum_q2_history > 0 else 1.0
     ratio_q4 = sum_q4_history / sum_q3_history if sum_q3_history > 0 else 1.0
 
@@ -768,24 +765,6 @@ if cached_data:
                                 
                                 st.markdown("#### 🏷️ 戰情核心指標")
                                 
-                                # 🔥 新增：永遠顯示籌碼徽章，利用顏色區分多空與觀望
-                                chip_badges = ""
-                                if t_buy_days >= 7 and t_net_vol > 0:
-                                    chip_badges += f"<span style='background-color:#ffe6e6; color:#d60000; padding:3px 8px; border-radius:4px; font-weight:bold; margin-right:5px;'>🔥 投信狂掃 ({int(t_buy_days)}/10) | {int(t_net_vol):+,} 張</span>"
-                                elif (10 - t_buy_days) >= 7 and t_net_vol < 0:
-                                    chip_badges += f"<span style='background-color:#e6ffe6; color:#008800; padding:3px 8px; border-radius:4px; font-weight:bold; margin-right:5px;'>⚠️ 投信倒貨 ({int(10-t_buy_days)}/10賣) | {int(t_net_vol):+,} 張</span>"
-                                else:
-                                    chip_badges += f"<span style='background-color:#f0f2f6; color:#333333; padding:3px 8px; border-radius:4px; font-weight:bold; margin-right:5px;'>📊 投信觀望 ({int(t_buy_days)}/10) | {int(t_net_vol):+,} 張</span>"
-
-                                if f_buy_days >= 7 and f_net_vol > 0:
-                                    chip_badges += f"<span style='background-color:#fff5e6; color:#cc7700; padding:3px 8px; border-radius:4px; font-weight:bold; margin-right:5px;'>💰 外資連買 ({int(f_buy_days)}/10) | {int(f_net_vol):+,} 張</span>"
-                                elif (10 - f_buy_days) >= 7 and f_net_vol < 0:
-                                    chip_badges += f"<span style='background-color:#e6ffe6; color:#008800; padding:3px 8px; border-radius:4px; font-weight:bold; margin-right:5px;'>⚠️ 外資倒貨 ({int(10-f_buy_days)}/10賣) | {int(f_net_vol):+,} 張</span>"
-                                else:
-                                    chip_badges += f"<span style='background-color:#f0f2f6; color:#333333; padding:3px 8px; border-radius:4px; font-weight:bold; margin-right:5px;'>⚖️ 外資觀望 ({int(f_buy_days)}/10) | {int(f_net_vol):+,} 張</span>"
-
-                                if chip_badges: st.markdown(f"<div style='margin-bottom:12px;'>{chip_badges}</div>", unsafe_allow_html=True)
-                                
                                 c_m1, c_m2, c_m3 = st.columns([1, 1.3, 1])
                                 with c_m1:
                                     st.metric("最新股價", f"{safe_price:.2f} 元")
@@ -803,9 +782,28 @@ if cached_data:
                                     st.metric("本益比 (PER)", f"{safe_per:.2f}")
                                     st.metric("預估年成長率", f"{safe_grow:.2f} %")
                                 
+                                # 🔥 籌碼徽章：濃縮至單行，移至最下方
+                                chip_badges = []
+                                if t_buy_days >= 7 and t_net_vol > 0:
+                                    chip_badges.append(f"<span style='background-color:#ffe6e6; color:#d60000; padding:2px 6px; border-radius:4px; font-weight:bold;'>🔥 投信狂掃 ({int(t_buy_days)}/10) | {int(t_net_vol):+,} 張</span>")
+                                elif (10 - t_buy_days) >= 7 and t_net_vol < 0:
+                                    chip_badges.append(f"<span style='background-color:#e6ffe6; color:#008800; padding:2px 6px; border-radius:4px; font-weight:bold;'>⚠️ 投信倒貨 ({int(10-t_buy_days)}/10賣) | {int(t_net_vol):+,} 張</span>")
+                                else:
+                                    chip_badges.append(f"<span style='background-color:#f0f2f6; color:#333333; padding:2px 6px; border-radius:4px; font-weight:bold;'>📊 投信觀望 ({int(t_buy_days)}/10) | {int(t_net_vol):+,} 張</span>")
+
+                                if f_buy_days >= 7 and f_net_vol > 0:
+                                    chip_badges.append(f"<span style='background-color:#fff5e6; color:#cc7700; padding:2px 6px; border-radius:4px; font-weight:bold;'>💰 外資連買 ({int(f_buy_days)}/10) | {int(f_net_vol):+,} 張</span>")
+                                elif (10 - f_buy_days) >= 7 and f_net_vol < 0:
+                                    chip_badges.append(f"<span style='background-color:#e6ffe6; color:#008800; padding:2px 6px; border-radius:4px; font-weight:bold;'>⚠️ 外資倒貨 ({int(10-f_buy_days)}/10賣) | {int(f_net_vol):+,} 張</span>")
+                                else:
+                                    chip_badges.append(f"<span style='background-color:#f0f2f6; color:#333333; padding:2px 6px; border-radius:4px; font-weight:bold;'>⚖️ 外資觀望 ({int(f_buy_days)}/10) | {int(f_net_vol):+,} 張</span>")
+
+                                chip_html = f"<div style='margin-top:6px; line-height:2.0;'>{' &nbsp; '.join(chip_badges)}</div>"
+
                                 st.markdown(
                                     f"📉 業外佔比: {safe_non_op:.2f}% ｜ 📈 合約負債: {liab_value:.2f}億 ({liab_qoq:.2f}%)<br>"
-                                    f"📊 最新單月營收 M/Y: <span style='color:{color_m}; font-weight:bold;'>{safe_mom:+.2f}%</span> / <span style='color:{color_y}; font-weight:bold;'>{safe_yoy:+.2f}%</span>", 
+                                    f"📊 最新單月營收 M/Y: <span style='color:{color_m}; font-weight:bold;'>{safe_mom:+.2f}%</span> / <span style='color:{color_y}; font-weight:bold;'>{safe_yoy:+.2f}%</span>"
+                                    f"{chip_html}", 
                                     unsafe_allow_html=True
                                 )
                                 if is_admin:
