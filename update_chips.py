@@ -1,10 +1,9 @@
 # ==========================================
-# 📂 檔案名稱： update_chips.py (上櫃終極潛行版)
-# 💡 任務：引入 Session 維持 Cookie、加上防護罩，突破櫃買中心防火牆！
+# 📂 檔案名稱： update_chips.py (Cloudscraper 破甲版)
+# 💡 任務：使用專門對付 Cloudflare 的破甲套件來繞過阻擋！
 # ==========================================
 
 import os
-import requests
 import gspread
 import json
 import time
@@ -12,8 +11,9 @@ import re
 from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
 import urllib3
+import cloudscraper # 🛡️ 引入新的破甲套件
 
-# 關閉 SSL 警告，避免被阻擋
+# 關閉 SSL 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 MASTER_GSHEET_URL = "https://docs.google.com/spreadsheets/d/1s4dIaZb4FLOHrn_hwreHPkDKSobgtlaqFJjnsQiO1F4/edit"
@@ -32,24 +32,18 @@ def clean_num(s):
     except: return 0
 
 def fetch_10_days_chips():
-    # 🛡️ 建立 Session，這非常重要！可以幫我們記住 Server 發的 Cookie，證明我們不是惡意機器人
-    session = requests.Session()
-    
-    # 🎭 掛上完整的瀏覽器擬真 Header
-    session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Referer': 'https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge.php',
-        'X-Requested-With': 'XMLHttpRequest',
-        'Connection': 'keep-alive'
+    # 🛡️ 啟動 Cloudscraper 模擬真實的 Chrome 瀏覽器，用來繞過防火牆
+    scraper = cloudscraper.create_scraper(browser={
+        'browser': 'chrome',
+        'platform': 'windows',
+        'desktop': True
     })
     
     chip_stats = {}
     valid_days = 0
     current_date = datetime.now()
     
-    print("🚀 開始啟動籌碼雷達，啟用上櫃『終極潛行模式』...")
+    print("🚀 開始啟動籌碼雷達，啟用『Cloudscraper 破甲模式』...")
 
     for _ in range(30):
         if valid_days >= 10: break
@@ -63,7 +57,6 @@ def fetch_10_days_chips():
         d_pad = current_date.strftime('%d')
         
         twse_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={dt_str}&selectType=ALL&response=json"
-        # 上櫃：回歸最穩定、不帶額外參數的全市場 API
         tpex_url = f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={roc_y}/{m_pad}/{d_pad}"
         
         day_has_data = False
@@ -74,7 +67,7 @@ def fetch_10_days_chips():
         # 1. 抓取上市 (TWSE)
         # ==========================================
         try:
-            res_twse = session.get(twse_url, timeout=10, verify=False).json()
+            res_twse = scraper.get(twse_url, timeout=15, verify=False).json()
             if res_twse.get('stat') == 'OK' and 'data' in res_twse:
                 twse_count = len(res_twse['data'])
                 day_has_data = True
@@ -98,16 +91,14 @@ def fetch_10_days_chips():
             print(f"  [上市錯誤] {dt_str}: {e}")
 
         # ==========================================
-        # 2. 抓取上櫃 (Session 潛行版)
+        # 2. 抓取上櫃 (TPEx) - 破甲版
         # ==========================================
-        # 🛡️ 智能防禦：只有當「上市有資料(有開盤)」時，我們才去戳上櫃 API，避免在假日無意義連線被鎖 IP
         if twse_count > 0: 
             try:
-                res_tpex_raw = session.get(tpex_url, timeout=10, verify=False)
+                res_tpex_raw = scraper.get(tpex_url, timeout=15, verify=False)
                 
-                # 偵測是否被防火牆阻擋 (回傳 HTML 而不是 JSON)
                 if res_tpex_raw.status_code != 200 or 'html' in res_tpex_raw.text.lower()[:100]:
-                    print(f"  [上櫃阻擋] {dt_str}: 遭遇防火牆！伺服器回應：{res_tpex_raw.text[:80]}...")
+                    print(f"  [上櫃阻擋] {dt_str}: 依然遭遇防火牆！伺服器回應：{res_tpex_raw.text[:80]}...")
                 else:
                     res_tpex = res_tpex_raw.json()
                     
@@ -116,7 +107,6 @@ def fetch_10_days_chips():
                         for row in res_tpex['aaData']:
                             code = str(row[0]).strip()
                             try:
-                                # 🎯 【凡甲除錯器】印出凡甲的原始資料
                                 if code == "3526":
                                     print(f"  👉 找到凡甲(3526)！外資格: {row[8]} | 投信格: {row[11]}")
 
@@ -131,9 +121,6 @@ def fetch_10_days_chips():
                                     chip_stats[code]['t_vol'] += t_net
                             except Exception as e: 
                                 if code == "3526": print(f"  ❌ 凡甲解析失敗: {e}")
-                    else:
-                        print(f"  [上櫃警告] {dt_str}: 解析成功，但 aaData 為空 (可能是伺服器延遲或軟封鎖)")
-                        
             except Exception as e:
                 print(f"  [上櫃連線失敗] {dt_str}: {e}")
 
@@ -142,9 +129,7 @@ def fetch_10_days_chips():
             print(f"✅ {dt_str} | 上市: {twse_count}筆 | 上櫃: {tpex_count}筆 (進度: {valid_days}/10)")
             
         current_date -= timedelta(days=1)
-        
-        # ⏳ 放慢腳步：將休息時間延長到 5 秒，避免引發 Cloudflare 防火牆警戒
-        time.sleep(5) 
+        time.sleep(3) 
         
     return chip_stats
 
