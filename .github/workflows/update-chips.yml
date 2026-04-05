@@ -1,0 +1,33 @@
+name: 4. 每日籌碼更新 (投信與外資10日)
+
+on:
+  workflow_dispatch:  # 🔘 允許在 Actions 後台手動點擊執行
+  schedule:
+    # 🕒 設定為台灣時間每週一到週五的下午 18:30 自動執行
+    # (伺服器使用 UTC 時間，所以 10:30 + 8小時 = 台灣 18:30)
+    - cron: '30 10 * * 1-5'
+
+jobs:
+  update_chips:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 取得最新程式碼
+      uses: actions/checkout@v3
+
+    - name: 🐍 設定 Python 環境
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: 📦 安裝必備套件
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests gspread google-auth
+
+    - name: 🚀 啟動籌碼搬運工 (update_chips.py)
+      env:
+        # 將 GitHub Secrets 裡的 Google 金鑰交給程式
+        GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+      run: |
+        python update_chips.py
