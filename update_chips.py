@@ -1,5 +1,5 @@
 # ==========================================
-# 📂 檔案名稱： update_chips.py (籌碼搬運工 - 上櫃鎖定無死角版)
+# 📂 檔案名稱： update_chips.py (籌碼搬運工 - 上櫃終極校準版)
 # 💡 任務：自動往回抓取 10 個「交易日」的上市/上櫃法人買賣超，並精準寫入表單！
 # ==========================================
 
@@ -47,7 +47,6 @@ def fetch_10_days_chips():
         tpex_str = f"{roc_y}/{current_date.strftime('%m/%d')}"
         
         twse_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={dt_str}&selectType=ALL&response=json"
-        # 🔥 關鍵修復：改回 se=EW (不含權證的純股票市場)，確保欄位 100% 穩定對齊
         tpex_url = f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={tpex_str}&se=EW"
         
         day_has_data = False
@@ -75,17 +74,16 @@ def fetch_10_days_chips():
                         if t_net > 0: chip_stats[code]['t_days'] += 1
                         chip_stats[code]['t_vol'] += t_net
 
-            # 2. 抓取上櫃 (TPEx)
+            # 2. 抓取上櫃 (TPEx) - 🌟 終極校準：外資固定第8格，投信固定第11格
             res_tpex = requests.get(tpex_url, headers=headers, timeout=10).json()
             if 'aaData' in res_tpex and len(res_tpex['aaData']) > 0:
                 day_has_data = True
                 for row in res_tpex['aaData']:
                     code = str(row[0]).strip()
                     try:
-                        if len(row) >= 14:
-                            # 🌟 EW 模式下，10 絕對是外資淨額，13 絕對是投信淨額
-                            f_net = clean_num(row[10]) // 1000
-                            t_net = clean_num(row[13]) // 1000
+                        if len(row) > 11:
+                            f_net = clean_num(row[8]) // 1000  # 外資及陸資買賣超
+                            t_net = clean_num(row[11]) // 1000 # 投信買賣超
                             
                             if code not in chip_stats:
                                 chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
