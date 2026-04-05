@@ -24,18 +24,25 @@ def yearly_rollover_mission():
         client = get_gspread_client()
         ss = client.open_by_url(MASTER_GSHEET_URL)
         all_sheets = ss.worksheets()
-        target_sheets = [ws for ws in all_sheets if "當年度表" in ws.title]
+        
+        # 🔥 升級點 1：將所有主力分頁（包含金融股）納入跨年雷達
+        target_names = ["當年度表", "個股總表", "總表", "金融股"]
+        target_sheets = [ws for ws in all_sheets if any(n in ws.title for n in target_names)]
         
         if not target_sheets:
-            print("❌ 找不到任何名稱包含「當年度表」的分頁！")
+            print("❌ 找不到任何符合跨年條件的分頁！")
             return
 
         for ws in target_sheets:
             print(f"\n=============================")
             print(f"🎯 正在處理主力分頁：【{ws.title}】")
             
-            # 第一步：備份歸檔至 2025
-            archive_name = ws.title.replace("當年度表", "歷史表單_2025_")
+            # 🔥 升級點 2：智慧命名備份分頁，確保「金融股」備份時不會撞名
+            if "當年度表" in ws.title:
+                archive_name = ws.title.replace("當年度表", "歷史表單_2025_")
+            else:
+                archive_name = f"歷史表單_2025_{ws.title}"
+                
             print(f"📦 正在備份至：{archive_name}")
             try:
                 ss.duplicate_sheet(ws.id, new_sheet_name=archive_name)
