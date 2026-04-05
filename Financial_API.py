@@ -1,9 +1,8 @@
 # ==========================================
-# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 終極防斷防干擾版)
+# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 法人籌碼顯影版)
 # 💡 更新內容： 
-#    1. 🛡️ 程式碼極致瘦身：所有長串文字強制換行，100% 杜絕 SyntaxError 截斷報錯！
-#    2. 🎯 M/Y% 終極鎖定：自動排除「累計」字眼，只要有「月增/年增」一律精準抓取！
-#    3. 🔥 殖利率公式：只信預估EPS，且若預估EPS < 0則股利與殖利率強制歸零！
+#    1. 籌碼動能標籤：自動偵測 10 日投信/外資動向，顯示「連買/連賣」與「總張數」彩色徽章！
+#    2. 維持防截斷排版與營收 M/Y% 顯示，保證 100% 穩定。
 # ==========================================
 
 import streamlit as st
@@ -28,7 +27,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==========================================
 # 網頁基本設定 & 響應式 CSS 
 # ==========================================
-st.set_page_config(page_title="2026 戰略指揮 (精準校準版)", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="2026 戰略指揮 (籌碼校準版)", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
@@ -93,12 +92,12 @@ def get_realtime_price(code, default_price):
         except: pass
     return default_price
 
-st.title("📊 2026 戰略指揮 (精準校準版)")
+st.title("📊 2026 戰略指揮 (籌碼校準版)")
 
 # ==========================================
 # 📊 核心大腦一：一般/成長股預估引擎
 # ==========================================
-def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last_12, rev_this_1, rev_this_2, rev_this_3, rev_this_4, rev_this_5, rev_this_6, base_q_eps, non_op_ratio, base_q_total_rev, ly_q1_rev, ly_q2_rev, ly_q3_rev, ly_q4_rev, y1_q1_rev, y1_q2_rev, y1_q3_rev, y1_q4_rev, recent_payout_ratio, current_price, contract_liab, contract_liab_qoq, acc_eps, declared_div, actual_q1_eps, latest_mom, latest_yoy):
+def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last_12, rev_this_1, rev_this_2, rev_this_3, rev_this_4, rev_this_5, rev_this_6, base_q_eps, non_op_ratio, base_q_total_rev, ly_q1_rev, ly_q2_rev, ly_q3_rev, ly_q4_rev, y1_q1_rev, y1_q2_rev, y1_q3_rev, y1_q4_rev, recent_payout_ratio, current_price, contract_liab, contract_liab_qoq, acc_eps, declared_div, actual_q1_eps, latest_mom, latest_yoy, t_buy_days, t_net_vol, f_buy_days, f_net_vol):
     try:
         current_price = float(current_price)
         if math.isnan(current_price) or math.isinf(current_price): current_price = 0.0
@@ -269,6 +268,7 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
         "最新業外佔比(%)": round(non_op_ratio, 2), 
         "最新季度流動合約負債(億)": contract_liab, "最新季度流動合約負債季增(%)": contract_liab_qoq,
         "最新單月營收M%": latest_mom, "最新單月營收Y%": latest_yoy,
+        "t_buy_days": t_buy_days, "t_net_vol": t_net_vol, "f_buy_days": f_buy_days, "f_net_vol": f_net_vol,
         "_ly_qs": [round(ly_q1_rev, 2), round(ly_q2_rev, 2), round(ly_q3_rev, 2), round(ly_q4_rev, 2)], 
         "_known_qs": [round(actual_known_q1, 2), round(actual_known_q2, 2), 0, 0],
         "_known_q1_months": [round(max(0, sim_rev_1), 2), round(max(0, sim_rev_2), 2), round(max(0, sim_rev_3), 2)],
@@ -279,7 +279,7 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
 # ==========================================
 # 🏦 核心大腦二：金融防禦存股專屬預估引擎
 # ==========================================
-def financial_strategic_model(name, code, current_month, data, simulated_month, actual_q1_eps, latest_mom, latest_yoy):
+def financial_strategic_model(name, code, current_month, data, simulated_month, actual_q1_eps, latest_mom, latest_yoy, t_buy_days, t_net_vol, f_buy_days, f_net_vol):
     rev_this_1, rev_this_2, rev_this_3 = data.get("rev_this_1",0), data.get("rev_this_2",0), data.get("rev_this_3",0)
     if simulated_month <= 1: sim_rev_1, sim_rev_2, sim_rev_3 = 0, 0, 0
     elif simulated_month == 2: sim_rev_1, sim_rev_2, sim_rev_3 = rev_this_1, 0, 0
@@ -390,7 +390,8 @@ def financial_strategic_model(name, code, current_month, data, simulated_month, 
         "運算配息率(%)": payout_ratio, 
         "配息基準": payout_note, 
         "當季預估均營收(億)": round(dynamic_base_avg, 2),
-        "最新單月營收M%": latest_mom, "最新單月營收Y%": latest_yoy
+        "最新單月營收M%": latest_mom, "最新單月營收Y%": latest_yoy,
+        "t_buy_days": t_buy_days, "t_net_vol": t_net_vol, "f_buy_days": f_buy_days, "f_net_vol": f_net_vol
     }
 
 # ==========================================
@@ -516,8 +517,12 @@ def fetch_gsheet_data_v182():
                     "price": v(get_col("成交", ex=["量", "值", "比"]) or get_col("股價", ex=["比", "淨值"])), 
                     "acc_eps": v(get_col("最新累季每股盈餘") or get_col("累季", "盈餘")),
                     "contract_liab": v(get_col("合約負債", ex=["季增"])), "contract_liab_qoq": v(get_col("合約負債季增") or get_col("季增", "負債")), "declared_div": v(get_col("合計股利")),
-                    "latest_mom": v(get_col("M%") or get_col("月增", ex=["累計"])), # 🔥 排除累計，精準鎖定單月
-                    "latest_yoy": v(get_col("Y%") or get_col("年增", ex=["累計"]))  # 🔥 排除累計，精準鎖定單月
+                    "latest_mom": v(get_col("M%") or get_col("月增", ex=["累計"])), 
+                    "latest_yoy": v(get_col("Y%") or get_col("年增", ex=["累計"])),
+                    "t_buy_days": v(get_col("投信10日買天數")),
+                    "t_net_vol": v(get_col("投信10日買賣超")),
+                    "f_buy_days": v(get_col("外資10日買天數")),
+                    "f_net_vol": v(get_col("外資10日買賣超"))
                 }
 
                 if code not in db:
@@ -690,7 +695,6 @@ if is_admin:
                                 clean_h = str(header).replace('\n', '').replace(' ', '').replace('\r', '').strip().upper()
                                 if "代號" in clean_h: 
                                     code_col_idx = i + 1
-                                # 🔥 排除累計字眼，確保抓到真正的「月增」與「年增」
                                 elif ("月增" in clean_h and "累計" not in clean_h) or "M%" in clean_h: 
                                     mom_col_idx = i + 1
                                 elif ("年增" in clean_h and "累計" not in clean_h) or "Y%" in clean_h: 
@@ -709,7 +713,6 @@ if is_admin:
                                         if mom_col_idx != -1 and pd.notna(row['月增率']): cells_to_update.append(gspread.Cell(row=row_idx, col=mom_col_idx, value=row['月增率']))
                                         if yoy_col_idx != -1 and pd.notna(row['年增率']): cells_to_update.append(gspread.Cell(row=row_idx, col=yoy_col_idx, value=row['年增率']))
                                 
-                                # 🔥 更新並自動改名為標準標題，不再找錯
                                 if mom_col_idx != -1: cells_to_update.append(gspread.Cell(row=1, col=mom_col_idx, value="最新單月營收M%"))
                                 if yoy_col_idx != -1: cells_to_update.append(gspread.Cell(row=1, col=yoy_col_idx, value="最新單月營收Y%"))
                                 
@@ -730,7 +733,6 @@ def render_dataframe(df_source, is_finance=False, is_single=False):
             df["股票名稱"] = df["股票名稱"].astype(str).str.strip()
             df = df.drop_duplicates(subset=["股票名稱"], keep='first')
             
-        # 🔥 程式碼徹底瘦身：所有長清單強制斷行，杜絕 SyntaxError 截斷報錯！
         if is_finance: 
             cols = ["股票名稱", "最新股價", "PBR(股價淨值比)", "前瞻殖利率(%)"]
             cols += ["近10年平均合計殖利率(%)", "前瞻PER", "原始PER", "預估今年Q1_EPS"]
@@ -815,7 +817,9 @@ if cached_data:
                             d["y1_q1_rev"], d["y1_q2_rev"], d["y1_q3_rev"], d["y1_q4_rev"], 
                             d.get("payout",0), pr, d.get("contract_liab",0), d.get("contract_liab_qoq",0), 
                             d.get("acc_eps",0), d.get("declared_div",0), d.get("actual_q1_eps",0),
-                            d.get("latest_mom", 0), d.get("latest_yoy", 0)
+                            d.get("latest_mom", 0), d.get("latest_yoy", 0),
+                            d.get("t_buy_days", 0), d.get("t_net_vol", 0),
+                            d.get("f_buy_days", 0), d.get("f_net_vol", 0)
                         )
                         res_list.append(r)
                 bar.empty()
@@ -860,16 +864,36 @@ if cached_data:
                                 safe_eps = get_safe_float(row.get('預估今年度_EPS', 0))
                                 safe_grow = get_safe_float(row.get('預估年成長率(%)', 0))
                                 safe_non_op = get_safe_float(row.get('最新業外佔比(%)', 0))
-                                
-                                # 🔥 取出最新單月 M/Y 數據，準備彩色變色輸出
                                 safe_mom = get_safe_float(row.get('最新單月營收M%', 0))
                                 safe_yoy = get_safe_float(row.get('最新單月營收Y%', 0))
+                                
                                 color_m = "#ff4b4b" if safe_mom > 0 else ("#00aa00" if safe_mom < 0 else "inherit")
                                 color_y = "#ff4b4b" if safe_yoy > 0 else ("#00aa00" if safe_yoy < 0 else "inherit")
                                 
-                                st.markdown("#### 🏷️ 戰情核心指標")
-                                c_m1, c_m2, c_m3 = st.columns([1, 1.3, 1])
+                                # 🔥 讀取籌碼數據
+                                t_buy_days = get_safe_float(row.get('t_buy_days', 0))
+                                t_net_vol = get_safe_float(row.get('t_net_vol', 0))
+                                f_buy_days = get_safe_float(row.get('f_buy_days', 0))
+                                f_net_vol = get_safe_float(row.get('f_net_vol', 0))
                                 
+                                st.markdown("#### 🏷️ 戰情核心指標")
+                                
+                                # 🔥 籌碼動能標籤 (自動變色)
+                                chip_badges = ""
+                                if t_buy_days >= 7 and t_net_vol > 0:
+                                    chip_badges += f"<span style='background-color:#ffe6e6; color:#d60000; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:5px;'>🔥 投信狂掃 ({int(t_buy_days)}/10) | 共 {int(t_net_vol):+,} 張</span>"
+                                elif (10 - t_buy_days) >= 7 and t_net_vol < 0:
+                                    chip_badges += f"<span style='background-color:#e6ffe6; color:#008800; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:5px;'>⚠️ 投信倒貨 ({int(10-t_buy_days)}/10賣) | 共 {int(t_net_vol):+,} 張</span>"
+
+                                if f_buy_days >= 7 and f_net_vol > 0:
+                                    chip_badges += f"<span style='background-color:#fff5e6; color:#cc7700; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:5px;'>💰 外資連買 ({int(f_buy_days)}/10) | 共 {int(f_net_vol):+,} 張</span>"
+                                elif (10 - f_buy_days) >= 7 and f_net_vol < 0:
+                                    chip_badges += f"<span style='background-color:#e6ffe6; color:#008800; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:5px;'>⚠️ 外資倒貨 ({int(10-f_buy_days)}/10賣) | 共 {int(f_net_vol):+,} 張</span>"
+
+                                if chip_badges:
+                                    st.markdown(f"<div style='margin-bottom:12px;'>{chip_badges}</div>", unsafe_allow_html=True)
+                                
+                                c_m1, c_m2, c_m3 = st.columns([1, 1.3, 1])
                                 with c_m1:
                                     st.metric("最新股價", f"{safe_price:.2f} 元")
                                     st.metric("前瞻殖利率", f"{safe_yield:.2f} %")
@@ -889,7 +913,6 @@ if cached_data:
                                     st.metric("本益比 (PER)", f"{safe_per:.2f}")
                                     st.metric("預估年成長率", f"{safe_grow:.2f} %")
                                 
-                                # 🔥 將 M/Y% 以專業的紅綠變色顯示於 UI 上
                                 st.markdown(
                                     f"📉 業外佔比: {safe_non_op:.2f}% ｜ 📈 合約負債: {liab_value:.2f}億 ({liab_qoq:.2f}%)<br>"
                                     f"📊 最新單月營收 M/Y: <span style='color:{color_m}; font-weight:bold;'>{safe_mom:+.2f}%</span> / <span style='color:{color_y}; font-weight:bold;'>{safe_yoy:+.2f}%</span>", 
@@ -977,7 +1000,6 @@ if cached_data:
             if st.button("📡 全市場掃描", type="primary"):
                 with st.spinner("極速掃描中..."):
                     
-                    # 🔥 避開 SyntaxError: 長清單文字安全寫法
                     ex_list = ["1316","1436","1438","1439","1442","1453","1456","1472","1805","1808"]
                     ex_list += ["2442","2501","2504","2505","2506","2509","2511","2515","2516","2520"]
                     ex_list += ["2524","2527","2528","2530","2534","2535","2536","2537","2538","2539"]
@@ -1009,7 +1031,9 @@ if cached_data:
                             d["y1_q1_rev"], d["y1_q2_rev"], d["y1_q3_rev"], d["y1_q4_rev"], 
                             d.get("payout",0), pr, d.get("contract_liab",0), d.get("contract_liab_qoq",0), 
                             d.get("acc_eps",0), d.get("declared_div",0), d.get("actual_q1_eps",0),
-                            d.get("latest_mom", 0), d.get("latest_yoy", 0)
+                            d.get("latest_mom", 0), d.get("latest_yoy", 0),
+                            d.get("t_buy_days", 0), d.get("t_net_vol", 0),
+                            d.get("f_buy_days", 0), d.get("f_net_vol", 0)
                         )
                         
                         ly_q1_avg, ly_q2 = r["_ly_qs"][0]/3, r["_ly_qs"][1]
@@ -1032,7 +1056,7 @@ if cached_data:
                 res_list = []
                 for c, d in db_fin.items():
                     if d.get("pbr",0) > 0: 
-                        res_list.append(financial_strategic_model(d["name"], c.strip(), simulated_month, d, simulated_month, d.get("actual_q1_eps",0), d.get("latest_mom", 0), d.get("latest_yoy", 0)))
+                        res_list.append(financial_strategic_model(d["name"], c.strip(), simulated_month, d, simulated_month, d.get("actual_q1_eps",0), d.get("latest_mom", 0), d.get("latest_yoy", 0), d.get("t_buy_days", 0), d.get("t_net_vol", 0), d.get("f_buy_days", 0), d.get("f_net_vol", 0)))
                 if not res_list: 
                     st.warning("無符合條件的金融股")
                 else: 
