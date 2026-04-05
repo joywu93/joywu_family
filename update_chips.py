@@ -1,6 +1,6 @@
 # ==========================================
-# 📂 檔案名稱： update_chips.py (籌碼搬運工 - 上櫃終極校準版)
-# 💡 任務：自動往回抓取 10 個「交易日」的上市/上櫃法人買賣超，並精準寫入表單！
+# 📂 檔案名稱： update_chips.py (上櫃終極除錯版)
+# 💡 任務：掛上最強偽裝器，並印出「凡甲」原始資料來抓 Bug！
 # ==========================================
 
 import os
@@ -11,6 +11,10 @@ import time
 import re
 from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
+import urllib3
+
+# 關閉 SSL 警告，避免被阻擋
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 MASTER_GSHEET_URL = "https://docs.google.com/spreadsheets/d/1s4dIaZb4FLOHrn_hwreHPkDKSobgtlaqFJjnsQiO1F4/edit"
 
@@ -21,7 +25,6 @@ def get_gspread_client():
     creds = Credentials.from_service_account_info(creds_dict, scopes=['https://www.googleapis.com/auth/spreadsheets'])
     return gspread.authorize(creds)
 
-# 🔥 強化數字清理：濾掉 HTML 標籤與逗號，防止報錯
 def clean_num(s):
     s = re.sub(r'<[^>]*>', '', str(s)).replace(',', '').strip()
     if not s or s in ['-', '--', '---']: return 0
@@ -29,12 +32,17 @@ def clean_num(s):
     except: return 0
 
 def fetch_10_days_chips():
-    headers = {'User-Agent': 'Mozilla/5.0'}
+    # 🔥 換上最強的瀏覽器偽裝，突破官方防火牆
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'X-Requested-With': 'XMLHttpRequest'
+    }
     chip_stats = {}
     valid_days = 0
     current_date = datetime.now()
     
-    print("🚀 開始啟動籌碼雷達，往前推算 10 個交易日...")
+    print("🚀 開始啟動籌碼雷達，專注測試上櫃資料...")
 
     for _ in range(30):
         if valid_days >= 10: break
@@ -50,11 +58,14 @@ def fetch_10_days_chips():
         tpex_url = f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={tpex_str}&se=EW"
         
         day_has_data = False
+        twse_count = 0
+        tpex_count = 0
         
         try:
-            # 1. 抓取上市 (TWSE)
-            res_twse = requests.get(twse_url, headers=headers, timeout=10).json()
+            # 1. 上市 (TWSE)
+            res_twse = requests.get(twse_url, headers=headers, timeout=10, verify=False).json()
             if res_twse.get('stat') == 'OK' and 'data' in res_twse:
+                twse_count = len(res_twse['data'])
                 day_has_data = True
                 fields = res_twse['fields']
                 c_idx = fields.index('證券代號')
@@ -67,37 +78,46 @@ def fetch_10_days_chips():
                         f_net = clean_num(row[f_idx]) // 1000 
                         t_net = clean_num(row[t_idx]) // 1000
 
-                        if code not in chip_stats:
-                            chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
+                        if code not in chip_stats: chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
                         if f_net > 0: chip_stats[code]['f_days'] += 1
                         chip_stats[code]['f_vol'] += f_net
                         if t_net > 0: chip_stats[code]['t_days'] += 1
                         chip_stats[code]['t_vol'] += t_net
+        except Exception as e:
+            print(f"  [上市錯誤] {dt_str}: {e}")
 
-            # 2. 抓取上櫃 (TPEx) - 🌟 終極校準：外資固定第8格，投信固定第11格
-            res_tpex = requests.get(tpex_url, headers=headers, timeout=10).json()
+        try:
+            # 2. 上櫃 (TPEx) - 加入除錯追蹤
+            res_tpex = requests.get(tpex_url, headers=headers, timeout=10, verify=False).json()
             if 'aaData' in res_tpex and len(res_tpex['aaData']) > 0:
+                tpex_count = len(res_tpex['aaData'])
                 day_has_data = True
                 for row in res_tpex['aaData']:
                     code = str(row[0]).strip()
                     try:
+                        # 🎯 【凡甲除錯器】印出凡甲的原始資料！
+                        if code == "3526":
+                            print(f"  👉 找到凡甲(3526)！總欄數: {len(row)} | 外資格: {row[8]} | 投信格: {row[11]}")
+
                         if len(row) > 11:
-                            f_net = clean_num(row[8]) // 1000  # 外資及陸資買賣超
-                            t_net = clean_num(row[11]) // 1000 # 投信買賣超
+                            f_net = clean_num(row[8]) // 1000  
+                            t_net = clean_num(row[11]) // 1000 
                             
-                            if code not in chip_stats:
-                                chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
+                            if code not in chip_stats: chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
                             if f_net > 0: chip_stats[code]['f_days'] += 1
                             chip_stats[code]['f_vol'] += f_net
                             if t_net > 0: chip_stats[code]['t_days'] += 1
                             chip_stats[code]['t_vol'] += t_net
-                    except: pass
+                    except Exception as e: 
+                        if code == "3526": print(f"  ❌ 凡甲解析失敗: {e}")
+            else:
+                print(f"  [上櫃警告] {dt_str}: 成功連線，但 aaData 裡面沒有資料！")
         except Exception as e:
-            pass
+            print(f"  [上櫃連線失敗] {dt_str}: {e}")
 
         if day_has_data:
             valid_days += 1
-            print(f"✅ 成功獲取 {dt_str} 籌碼數據 (已收集 {valid_days}/10 天)")
+            print(f"✅ {dt_str} | 上市: {twse_count}筆 | 上櫃: {tpex_count}筆 (收集進度: {valid_days}/10)")
             
         current_date -= timedelta(days=1)
         time.sleep(2) 
