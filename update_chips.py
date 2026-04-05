@@ -1,5 +1,5 @@
 # ==========================================
-# 📂 檔案名稱： update_chips.py (籌碼搬運工 - 上櫃精準修復版)
+# 📂 檔案名稱： update_chips.py (籌碼搬運工 - 上櫃動態精準版)
 # 💡 任務：自動往回抓取 10 個「交易日」的上市/上櫃法人買賣超，並精準寫入表單！
 # ==========================================
 
@@ -8,6 +8,7 @@ import requests
 import gspread
 import json
 import time
+import re
 from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
 
@@ -19,6 +20,13 @@ def get_gspread_client():
     creds_dict = json.loads(key_data)
     creds = Credentials.from_service_account_info(creds_dict, scopes=['https://www.googleapis.com/auth/spreadsheets'])
     return gspread.authorize(creds)
+
+# 🔥 強化數字清理：濾掉 HTML 標籤與逗號，防止報錯
+def clean_num(s):
+    s = re.sub(r'<[^>]*>', '', str(s)).replace(',', '').strip()
+    if not s or s in ['-', '--', '---']: return 0
+    try: return int(float(s))
+    except: return 0
 
 def fetch_10_days_chips():
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -39,7 +47,6 @@ def fetch_10_days_chips():
         tpex_str = f"{roc_y}/{current_date.strftime('%m/%d')}"
         
         twse_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={dt_str}&selectType=ALL&response=json"
-        # 🔥 修復：改為 se=AL (上櫃全部股票)，不再找錯權證區
         tpex_url = f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={tpex_str}&se=AL"
         
         day_has_data = False
@@ -57,41 +64,42 @@ def fetch_10_days_chips():
                 if f_idx != -1 and t_idx != -1:
                     for row in res_twse['data']:
                         code = str(row[c_idx]).strip()
-                        f_net = int(str(row[f_idx]).replace(',', '').strip() or 0) // 1000 
-                        t_net = int(str(row[t_idx]).replace(',', '').strip() or 0) // 1000
+                        f_net = clean_num(row[f_idx]) // 1000 
+                        t_net = clean_num(row[t_idx]) // 1000
 
                         if code not in chip_stats:
                             chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
-
                         if f_net > 0: chip_stats[code]['f_days'] += 1
                         chip_stats[code]['f_vol'] += f_net
-
                         if t_net > 0: chip_stats[code]['t_days'] += 1
                         chip_stats[code]['t_vol'] += t_net
 
-            # 2. 抓取上櫃 (TPEx) - 🌟 修復欄位對應
+            # 2. 抓取上櫃 (TPEx) - 🌟 動態欄位辨識
             res_tpex = requests.get(tpex_url, headers=headers, timeout=10).json()
             if 'aaData' in res_tpex and len(res_tpex['aaData']) > 0:
                 day_has_data = True
                 for row in res_tpex['aaData']:
                     code = str(row[0]).strip()
                     try:
-                        if len(row) >= 14:
-                            # 🌟 上櫃標準欄位：10 是外資合計淨買賣，13 是投信淨買賣
-                            f_net = int(str(row[10]).replace(',', '').strip() or 0) // 1000
-                            t_net = int(str(row[13]).replace(',', '').strip() or 0) // 1000
-                            
-                            if code not in chip_stats:
-                                chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
-
-                            if f_net > 0: chip_stats[code]['f_days'] += 1
-                            chip_stats[code]['f_vol'] += f_net
-
-                            if t_net > 0: chip_stats[code]['t_days'] += 1
-                            chip_stats[code]['t_vol'] += t_net
+                        # 🌟 動態判斷上櫃 API 的格式版本
+                        if len(row) >= 15:
+                            f_idx, t_idx = 10, 13
+                        elif len(row) >= 12:
+                            f_idx, t_idx = 8, 11
+                        else: continue
+                        
+                        f_net = clean_num(row[f_idx]) // 1000
+                        t_net = clean_num(row[t_idx]) // 1000
+                        
+                        if code not in chip_stats:
+                            chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
+                        if f_net > 0: chip_stats[code]['f_days'] += 1
+                        chip_stats[code]['f_vol'] += f_net
+                        if t_net > 0: chip_stats[code]['t_days'] += 1
+                        chip_stats[code]['t_vol'] += t_net
                     except: pass
         except Exception as e:
-            print(f"⚠️ {dt_str} 抓取發生錯誤 (可能為國定假日無資料)")
+            pass
 
         if day_has_data:
             valid_days += 1
