@@ -55,7 +55,9 @@ def fetch_10_days_chips():
         tpex_str = f"{roc_y}/{current_date.strftime('%m/%d')}"
         
         twse_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={dt_str}&selectType=ALL&response=json"
-        tpex_url = f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={tpex_str}&se=EW"
+        
+        # 🐛 這裡把原本的 se=EW 改成 se=AL (全部)，才能抓到凡甲等所有上櫃股票
+        tpex_url = f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={tpex_str}&se=AL"
         
         day_has_data = False
         twse_count = 0
