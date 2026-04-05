@@ -1,8 +1,8 @@
 # ==========================================
-# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 法人籌碼顯影版)
+# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 中文籌碼顯影版)
 # 💡 更新內容： 
-#    1. 籌碼動能標籤：自動偵測 10 日投信/外資動向，顯示「連買/連賣」與「總張數」彩色徽章！
-#    2. 維持防截斷排版與營收 M/Y% 顯示，保證 100% 穩定。
+#    1. 籌碼欄位全數「中文正名」，修復英文裸奔問題。
+#    2. 將四大籌碼數據正式納入「關注清單總表」，方便一眼掃瞄排序！
 # ==========================================
 
 import streamlit as st
@@ -24,10 +24,7 @@ from datetime import datetime
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# ==========================================
-# 網頁基本設定 & 響應式 CSS 
-# ==========================================
-st.set_page_config(page_title="2026 戰略指揮 (籌碼校準版)", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="2026 戰略指揮 (精準校準版)", layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
     <style>
@@ -94,9 +91,6 @@ def get_realtime_price(code, default_price):
 
 st.title("📊 2026 戰略指揮 (籌碼校準版)")
 
-# ==========================================
-# 📊 核心大腦一：一般/成長股預估引擎
-# ==========================================
 def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last_12, rev_this_1, rev_this_2, rev_this_3, rev_this_4, rev_this_5, rev_this_6, base_q_eps, non_op_ratio, base_q_total_rev, ly_q1_rev, ly_q2_rev, ly_q3_rev, ly_q4_rev, y1_q1_rev, y1_q2_rev, y1_q3_rev, y1_q4_rev, recent_payout_ratio, current_price, contract_liab, contract_liab_qoq, acc_eps, declared_div, actual_q1_eps, latest_mom, latest_yoy, t_buy_days, t_net_vol, f_buy_days, f_net_vol):
     try:
         current_price = float(current_price)
@@ -118,10 +112,8 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
     ratio_q3 = sum_q3_history / sum_q2_history if sum_q2_history > 0 else 1.0
     ratio_q4 = sum_q4_history / sum_q3_history if sum_q3_history > 0 else 1.0
 
-    if rev_last_12 > 0:
-        base_11_12_avg = (rev_last_11 + rev_last_12) / 2
-    else:
-        base_11_12_avg = (rev_last_10 + rev_last_11 + (rev_last_11 * 0.9)) / 3
+    if rev_last_12 > 0: base_11_12_avg = (rev_last_11 + rev_last_12) / 2
+    else: base_11_12_avg = (rev_last_10 + rev_last_11 + (rev_last_11 * 0.9)) / 3
         
     benchmark_q1_rev = (base_11_12_avg * 3) * ratio_q1 
     benchmark_q2_rev = benchmark_q1_rev 
@@ -172,32 +164,19 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
             dynamic_base_avg = base_11_12_avg
             formula_note = "動態EPS推估 (全無,用標竿)"
 
-    if current_month <= 3:
-        dynamic_est_q2_rev = dynamic_est_q1_rev
+    if current_month <= 3: dynamic_est_q2_rev = dynamic_est_q1_rev
     elif current_month == 4:
-        if rev_this_4 > 0:
-            dynamic_est_q2_rev = (rev_this_4 * 2) + (rev_this_4 * 0.9)
-            formula_note += " (Q2:4月x2+0.9)"
-        else:
-            dynamic_est_q2_rev = dynamic_est_q1_rev
+        if rev_this_4 > 0: dynamic_est_q2_rev = (rev_this_4 * 2) + (rev_this_4 * 0.9); formula_note += " (Q2:4月x2+0.9)"
+        else: dynamic_est_q2_rev = dynamic_est_q1_rev
     else: 
-        if rev_this_4 > 0 and rev_this_5 > 0:
-            dynamic_est_q2_rev = rev_this_4 + rev_this_5 + (rev_this_5 * 0.9)
-            formula_note += " (Q2:4+5+5月x0.9)"
-        elif rev_this_4 > 0:
-            dynamic_est_q2_rev = (rev_this_4 * 2) + (rev_this_4 * 0.9)
-            formula_note += " (Q2:缺5月退守4月公式)"
-        else:
-            dynamic_est_q2_rev = dynamic_est_q1_rev
+        if rev_this_4 > 0 and rev_this_5 > 0: dynamic_est_q2_rev = rev_this_4 + rev_this_5 + (rev_this_5 * 0.9); formula_note += " (Q2:4+5+5月x0.9)"
+        elif rev_this_4 > 0: dynamic_est_q2_rev = (rev_this_4 * 2) + (rev_this_4 * 0.9); formula_note += " (Q2:缺5月退守4月公式)"
+        else: dynamic_est_q2_rev = dynamic_est_q1_rev
 
-    if current_month <= 3:
-        actual_known_q2 = 0
-    elif current_month == 4:
-        actual_known_q2 = max(0, rev_this_4)
-    elif current_month == 5:
-        actual_known_q2 = max(0, rev_this_4) + max(0, rev_this_5)
-    else:
-        actual_known_q2 = max(0, rev_this_4) + max(0, rev_this_5) + max(0, rev_this_6)
+    if current_month <= 3: actual_known_q2 = 0
+    elif current_month == 4: actual_known_q2 = max(0, rev_this_4)
+    elif current_month == 5: actual_known_q2 = max(0, rev_this_4) + max(0, rev_this_5)
+    else: actual_known_q2 = max(0, rev_this_4) + max(0, rev_this_5) + max(0, rev_this_6)
 
     dynamic_est_q3_rev = dynamic_est_q2_rev * ratio_q3
     dynamic_est_q4_rev = dynamic_est_q3_rev * ratio_q4
@@ -232,30 +211,19 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
     payout_note = ""
     if acc_eps > 0 and declared_div > 0:
         raw_payout = (declared_div / acc_eps) * 100
-        if raw_payout >= 100:
-            calc_payout_ratio = 90.0
-            payout_note = "⚠️ 最新公告(壓回90%)"
-        elif raw_payout <= 0:
-            calc_payout_ratio = 50.0
-            payout_note = "🛡️ 最新公告(異常補50%)"
-        else:
-            calc_payout_ratio = raw_payout
-            payout_note = "✅ 最新公告股利推算"
+        if raw_payout >= 100: calc_payout_ratio = 90.0; payout_note = "⚠️ 最新公告(壓回90%)"
+        elif raw_payout <= 0: calc_payout_ratio = 50.0; payout_note = "🛡️ 最新公告(異常補50%)"
+        else: calc_payout_ratio = raw_payout; payout_note = "✅ 最新公告股利推算"
     else:
         raw_payout = recent_payout_ratio
-        if raw_payout >= 100:
-            calc_payout_ratio = 90.0
-            payout_note = "⚠️ 歷史配息(壓回90%)"
-        elif raw_payout <= 0:
-            calc_payout_ratio = 50.0
-            payout_note = "🛡️ 無資料(防守填50%)"
-        else:
-            calc_payout_ratio = raw_payout
-            payout_note = "🕒 歷史配息率"
+        if raw_payout >= 100: calc_payout_ratio = 90.0; payout_note = "⚠️ 歷史配息(壓回90%)"
+        elif raw_payout <= 0: calc_payout_ratio = 50.0; payout_note = "🛡️ 無資料(防守填50%)"
+        else: calc_payout_ratio = raw_payout; payout_note = "🕒 歷史配息率"
             
     est_annual_dividend = max(0, est_full_year_eps) * (calc_payout_ratio / 100)
     forward_yield = (est_annual_dividend / current_price) * 100 if current_price > 0 else 0.0
 
+    # 🌟 修正：全部正名為中文標題，不再顯示 t_buy_days
     return {
         "股票名稱": name, "最新股價": round(current_price, 2), 
         "_logic_note": formula_note, "_payout_note": "", 
@@ -268,7 +236,8 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
         "最新業外佔比(%)": round(non_op_ratio, 2), 
         "最新季度流動合約負債(億)": contract_liab, "最新季度流動合約負債季增(%)": contract_liab_qoq,
         "最新單月營收M%": latest_mom, "最新單月營收Y%": latest_yoy,
-        "t_buy_days": t_buy_days, "t_net_vol": t_net_vol, "f_buy_days": f_buy_days, "f_net_vol": f_net_vol,
+        "投信10日買天數": t_buy_days, "投信10日買賣超": t_net_vol, 
+        "外資10日買天數": f_buy_days, "外資10日買賣超": f_net_vol,
         "_ly_qs": [round(ly_q1_rev, 2), round(ly_q2_rev, 2), round(ly_q3_rev, 2), round(ly_q4_rev, 2)], 
         "_known_qs": [round(actual_known_q1, 2), round(actual_known_q2, 2), 0, 0],
         "_known_q1_months": [round(max(0, sim_rev_1), 2), round(max(0, sim_rev_2), 2), round(max(0, sim_rev_3), 2)],
@@ -276,9 +245,6 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
         "_total_est_qs": [round(benchmark_q1_rev, 2), round(benchmark_q2_rev, 2), round(benchmark_q3_rev, 2), round(benchmark_q4_rev, 2)]
     }
 
-# ==========================================
-# 🏦 核心大腦二：金融防禦存股專屬預估引擎
-# ==========================================
 def financial_strategic_model(name, code, current_month, data, simulated_month, actual_q1_eps, latest_mom, latest_yoy, t_buy_days, t_net_vol, f_buy_days, f_net_vol):
     rev_this_1, rev_this_2, rev_this_3 = data.get("rev_this_1",0), data.get("rev_this_2",0), data.get("rev_this_3",0)
     if simulated_month <= 1: sim_rev_1, sim_rev_2, sim_rev_3 = 0, 0, 0
@@ -290,58 +256,40 @@ def financial_strategic_model(name, code, current_month, data, simulated_month, 
     r_12 = data.get("rev_last_12", 0)
     base_11_12_avg = (r_11 + r_12) / 2
 
-    if simulated_month <= 1: 
-        dynamic_est_q1_rev = data.get("ly_q4_rev", 0) 
+    if simulated_month <= 1: dynamic_est_q1_rev = data.get("ly_q4_rev", 0) 
     elif simulated_month == 2: 
-        if sim_rev_1 > 0:
-            dynamic_est_q1_rev = sim_rev_1 + (base_11_12_avg * 2)
-        else:
-            dynamic_est_q1_rev = data.get("ly_q4_rev", 0) 
+        if sim_rev_1 > 0: dynamic_est_q1_rev = sim_rev_1 + (base_11_12_avg * 2)
+        else: dynamic_est_q1_rev = data.get("ly_q4_rev", 0) 
     elif simulated_month == 3: 
-        if sim_rev_2 > 0: 
-            dynamic_est_q1_rev = (sim_rev_1 + sim_rev_2) * 1.5
-        elif sim_rev_1 > 0:
-            dynamic_est_q1_rev = sim_rev_1 + (base_11_12_avg * 2)
-        else: 
-            dynamic_est_q1_rev = data.get("ly_q4_rev", 0) 
+        if sim_rev_2 > 0: dynamic_est_q1_rev = (sim_rev_1 + sim_rev_2) * 1.5
+        elif sim_rev_1 > 0: dynamic_est_q1_rev = sim_rev_1 + (base_11_12_avg * 2)
+        else: dynamic_est_q1_rev = data.get("ly_q4_rev", 0) 
     else: 
-        if sim_rev_3 > 0:
-            dynamic_est_q1_rev = sim_rev_1 + sim_rev_2 + sim_rev_3
-        elif sim_rev_2 > 0:
-            dynamic_est_q1_rev = (sim_rev_1 + sim_rev_2) * 1.5
-        elif sim_rev_1 > 0:
-            dynamic_est_q1_rev = sim_rev_1 + (base_11_12_avg * 2)
-        else:
-            dynamic_est_q1_rev = data.get("ly_q4_rev", 0)
+        if sim_rev_3 > 0: dynamic_est_q1_rev = sim_rev_1 + sim_rev_2 + sim_rev_3
+        elif sim_rev_2 > 0: dynamic_est_q1_rev = (sim_rev_1 + sim_rev_2) * 1.5
+        elif sim_rev_1 > 0: dynamic_est_q1_rev = sim_rev_1 + (base_11_12_avg * 2)
+        else: dynamic_est_q1_rev = data.get("ly_q4_rev", 0)
             
     dynamic_base_avg = dynamic_est_q1_rev / 3 if dynamic_est_q1_rev > 0 else 0
 
     base_eps = data["eps_q4"] if data.get("eps_q4", 0) != 0 else data.get("eps_q3", 0)
     base_rev = data["ly_q4_rev"] if data.get("ly_q4_rev", 0) > 0 else data.get("ly_q3_rev", 1)
     
-    if base_rev > 0:
-        est_q1_eps_forecast = base_eps * (dynamic_est_q1_rev / base_rev)
-    else:
-        est_q1_eps_forecast = 0
+    if base_rev > 0: est_q1_eps_forecast = base_eps * (dynamic_est_q1_rev / base_rev)
+    else: est_q1_eps_forecast = 0
     
     ly_total_eps = data.get("eps_q1",0) + data.get("eps_q2",0) + data.get("eps_q3",0) + data.get("eps_q4",0)
 
     if actual_q1_eps > 0:
         est_q1_eps_display = actual_q1_eps
-        if data.get("eps_q1",0) > 0 and ly_total_eps > 0:
-            est_fy_eps = actual_q1_eps * (ly_total_eps / data["eps_q1"])
-        elif ly_total_eps > 0:
-            est_fy_eps = actual_q1_eps + data.get("eps_q2",0) + data.get("eps_q3",0) + data.get("eps_q4",0)
-        else:
-            est_fy_eps = actual_q1_eps * 4
+        if data.get("eps_q1",0) > 0 and ly_total_eps > 0: est_fy_eps = actual_q1_eps * (ly_total_eps / data["eps_q1"])
+        elif ly_total_eps > 0: est_fy_eps = actual_q1_eps + data.get("eps_q2",0) + data.get("eps_q3",0) + data.get("eps_q4",0)
+        else: est_fy_eps = actual_q1_eps * 4
     else:
         est_q1_eps_display = est_q1_eps_forecast
-        if data.get("eps_q1",0) > 0 and ly_total_eps > 0: 
-            est_fy_eps = est_q1_eps_forecast * (ly_total_eps / data["eps_q1"])
-        elif ly_total_eps > 0: 
-            est_fy_eps = est_q1_eps_forecast + data.get("eps_q2",0) + data.get("eps_q3",0) + data.get("eps_q4",0)
-        else: 
-            est_fy_eps = est_q1_eps_forecast * 4
+        if data.get("eps_q1",0) > 0 and ly_total_eps > 0: est_fy_eps = est_q1_eps_forecast * (ly_total_eps / data["eps_q1"])
+        elif ly_total_eps > 0: est_fy_eps = est_q1_eps_forecast + data.get("eps_q2",0) + data.get("eps_q3",0) + data.get("eps_q4",0)
+        else: est_fy_eps = est_q1_eps_forecast * 4
         
     current_price = float(data.get("price", 0))
     est_per = current_price / est_fy_eps if est_fy_eps > 0 else 0
@@ -352,26 +300,14 @@ def financial_strategic_model(name, code, current_month, data, simulated_month, 
 
     if f_acc_eps > 0 and f_declared_div > 0:
         raw_payout = (f_declared_div / f_acc_eps) * 100
-        if raw_payout > 100:
-            payout_ratio = 80.0
-            payout_note = "⚠️ 最新計算(防守填80%)"
-        elif raw_payout <= 0:
-            payout_ratio = 50.0
-            payout_note = "🛡️ 最新計算(防守填50%)"
-        else:
-            payout_ratio = raw_payout
-            payout_note = "✅ 最新股利/累計盈餘"
+        if raw_payout > 100: payout_ratio = 80.0; payout_note = "⚠️ 最新計算(防守填80%)"
+        elif raw_payout <= 0: payout_ratio = 50.0; payout_note = "🛡️ 最新計算(防守填50%)"
+        else: payout_ratio = raw_payout; payout_note = "✅ 最新股利/累計盈餘"
     else:
         raw_payout = data.get("payout", 0)
-        if raw_payout > 100:
-            payout_ratio = 80.0
-            payout_note = "⚠️ 歷史配息(防守填80%)"
-        elif raw_payout <= 0:
-            payout_ratio = 50.0
-            payout_note = "🛡️ 無資料(防守填50%)"
-        else:
-            payout_ratio = raw_payout
-            payout_note = "🕒 表單歷史配息率"
+        if raw_payout > 100: payout_ratio = 80.0; payout_note = "⚠️ 歷史配息(防守填80%)"
+        elif raw_payout <= 0: payout_ratio = 50.0; payout_note = "🛡️ 無資料(防守填50%)"
+        else: payout_ratio = raw_payout; payout_note = "🕒 表單歷史配息率"
             
     est_dividend = max(0, est_fy_eps) * (payout_ratio / 100)
     forward_yield = (est_dividend / current_price) * 100 if current_price > 0 else 0.0
@@ -391,12 +327,10 @@ def financial_strategic_model(name, code, current_month, data, simulated_month, 
         "配息基準": payout_note, 
         "當季預估均營收(億)": round(dynamic_base_avg, 2),
         "最新單月營收M%": latest_mom, "最新單月營收Y%": latest_yoy,
-        "t_buy_days": t_buy_days, "t_net_vol": t_net_vol, "f_buy_days": f_buy_days, "f_net_vol": f_net_vol
+        "投信10日買天數": t_buy_days, "投信10日買賣超": t_net_vol, 
+        "外資10日買天數": f_buy_days, "外資10日買賣超": f_net_vol
     }
 
-# ==========================================
-# 🌟 核心快取大腦
-# ==========================================
 def deduplicate_cols(cols):
     seen = {}
     res = []
@@ -477,15 +411,9 @@ def fetch_gsheet_data_v182():
                 nop_q3 = v(get_col(f"{ly}Q3", "業外損益", ex=["率", "%", "增", "每股", "佔"]))
 
                 if eps_q4 != 0 or op_q4 != 0 or nop_q4 != 0:
-                    base_op = op_q4
-                    base_nop = nop_q4
-                    base_q_total_rev = rev_q4
-                    base_eps = eps_q4
+                    base_op = op_q4; base_nop = nop_q4; base_q_total_rev = rev_q4; base_eps = eps_q4
                 else:
-                    base_op = op_q3
-                    base_nop = nop_q3
-                    base_q_total_rev = rev_q3
-                    base_eps = eps_q3
+                    base_op = op_q3; base_nop = nop_q3; base_q_total_rev = rev_q3; base_eps = eps_q3
                     
                 denom = base_op + base_nop
                 non_op_ratio = (base_nop / denom * 100) if denom != 0 else 0.0
@@ -525,25 +453,18 @@ def fetch_gsheet_data_v182():
                     "f_net_vol": v(get_col("外資10日買賣超"))
                 }
 
-                if code not in db:
-                    db[code] = new_entry
+                if code not in db: db[code] = new_entry
                 else:
                     for k, val in new_entry.items():
-                        if val and val not in [0, 0.0, "", "未知", "未分類"]:
-                            db[code][k] = val
+                        if val and val not in [0, 0.0, "", "未知", "未分類"]: db[code][k] = val
 
             return db
         return {"general": parse_df(df_general), "finance": parse_df(df_finance)}
     except Exception as e: return {"error": str(e)}
 
 cached_data = fetch_gsheet_data_v182()
-if cached_data and "error" in cached_data:
-    st.error(f"檔案解析失敗。錯誤：{cached_data['error']}")
-    cached_data = None
+if cached_data and "error" in cached_data: st.error(f"檔案解析失敗。錯誤：{cached_data['error']}"); cached_data = None
 
-# ==========================================
-# 側邊欄：登入與動態權限判斷
-# ==========================================
 if st.sidebar.button("🔄 重新載入最新表單資料", type="primary", use_container_width=True):
     clear_cache_and_session()
     st.sidebar.success("✅ 重新載入中...")
@@ -553,7 +474,6 @@ if st.sidebar.button("🔄 重新載入最新表單資料", type="primary", use_
 st.sidebar.header("⚙️ 系統參數")
 default_stay_month = 4
 simulated_month = st.sidebar.slider("月份推演 (檢視當下戰情)", 1, 12, default_stay_month)
-
 st.sidebar.divider()
 st.sidebar.header("👤 帳號登入")
 user_email = st.sidebar.text_input("請輸入您的 Email", placeholder="輸入信箱載入專屬清單...")
@@ -582,16 +502,11 @@ if user_email and st.sidebar.button("💾 儲存 / 更新清單", type="secondar
     with st.spinner("寫入中..."):
         if user_row_idx: sheet_auth.update_cell(user_row_idx, 2, watch_list_input)
         else: sheet_auth.append_row([user_email.strip(), watch_list_input, "否"]) 
-        clear_cache_and_session()
-        force_rerun()
+        clear_cache_and_session(); force_rerun()
 
-# ==========================================
-# 🌟 引擎：官方自動更新專區 
-# ==========================================
 if is_admin:
     st.sidebar.divider()
     st.sidebar.markdown("### 🤖 大數據自動更新中心")
-    
     if st.sidebar.button("⚡ 1️⃣ 盤後股價更新", type="secondary", use_container_width=True):
         with st.status("連線官方伺服器...", expanded=True) as status:
             try:
@@ -633,23 +548,16 @@ if is_admin:
                             if c_name in ["代號", "股票代號", "證券代號"]: c_idx = i
                             if c_name in ["成交", "股價", "最新股價", "收盤價"]: p_idx = i
                         if c_idx != -1 and p_idx != -1:
-                            st.write(f"🔍 分頁 [{ws.title}] 定位成功！代號在第 {c_idx+1} 欄，股價寫入第 {p_idx+1} 欄")
                             cells = []
                             for r_idx, row in enumerate(data[1:], start=2):
                                 if c_idx < len(row):
                                     code = str(row[c_idx]).split('.')[0].strip()
                                     if code in price_dict: cells.append(gspread.Cell(row=r_idx, col=p_idx+1, value=str(price_dict[code])))
-                            if cells: 
-                                ws.update_cells(cells, value_input_option='USER_ENTERED')
-                                cnt += len(cells)
-                                st.write(f"✅ 分頁 [{ws.title}] 成功寫入了 {len(cells)} 檔股價！")
-                        else: st.write(f"⚠️ 分頁 [{ws.title}] 找不到正確欄位，已跳過！")
-                    status.update(label=f"🎉 任務完成！總共更新 {cnt} 個儲存格！", state="complete")
-                    st.cache_data.clear()
+                            if cells: ws.update_cells(cells, value_input_option='USER_ENTERED'); cnt += len(cells)
+                    status.update(label=f"🎉 任務完成！總共更新 {cnt} 個儲存格！", state="complete"); st.cache_data.clear()
             except Exception as e: status.update(label=f"錯誤: {str(e)}", state="error"); st.error(e)
 
-    now = datetime.now()
-    lm_month, lm_year = (now.month - 1) or 12, now.year if now.month > 1 else now.year - 1
+    now = datetime.now(); lm_month, lm_year = (now.month - 1) or 12, now.year if now.month > 1 else now.year - 1
     auto_ym = st.sidebar.text_input("設定營收標題 (如: 26M03)", value=f"{str(lm_year)[-2:]}M{str(lm_month).zfill(2)}")
     
     if st.sidebar.button("⚡ 2️⃣ 官方月營收更新", type="secondary", use_container_width=True):
@@ -659,10 +567,8 @@ if is_admin:
                 target_sheets = [ws for ws in worksheets if any(n in ws.title for n in ["當年度表", "個股總表", "總表", "金融股"])]
                 if not target_sheets: status.update(label="任務失敗：找不到分頁", state="error")
                 else:
-                    tm_h = auto_ym.strip().upper()
-                    y_roc, q_m = (2000 + int(tm_h[:2])) - 1911, str(int(tm_h[-2:]))
-                    df_all_list = []
-                    headers = {'User-Agent': 'Mozilla/5.0'}
+                    tm_h = auto_ym.strip().upper(); y_roc, q_m = (2000 + int(tm_h[:2])) - 1911, str(int(tm_h[-2:]))
+                    df_all_list = []; headers = {'User-Agent': 'Mozilla/5.0'}
                     def safe_parse_number(val):
                         try:
                             s = str(val).replace(',', '').replace('%', '').strip()
@@ -683,25 +589,18 @@ if is_admin:
                         except: pass
                     if not df_all_list: status.update(label=f"⚠️ 目前尚未公佈 {tm_h} 營收", state="error", expanded=True)
                     else:
-                        df_early = pd.DataFrame(df_all_list).sort_values('來源優先級').drop_duplicates(subset=['公司代號']) 
-                        cnt = 0
+                        df_early = pd.DataFrame(df_all_list).sort_values('來源優先級').drop_duplicates(subset=['公司代號']); cnt = 0
                         for ws in target_sheets:
                             data = ws.get_all_values()
                             if not data: continue
                             h = data[0]
                             target_col_idx, mom_col_idx, yoy_col_idx, code_col_idx = -1, -1, -1, -1
-                            
                             for i, header in enumerate(h):
                                 clean_h = str(header).replace('\n', '').replace(' ', '').replace('\r', '').strip().upper()
-                                if "代號" in clean_h: 
-                                    code_col_idx = i + 1
-                                elif ("月增" in clean_h and "累計" not in clean_h) or "M%" in clean_h: 
-                                    mom_col_idx = i + 1
-                                elif ("年增" in clean_h and "累計" not in clean_h) or "Y%" in clean_h: 
-                                    yoy_col_idx = i + 1
-                                elif tm_h in clean_h and "營收" in clean_h and "增" not in clean_h: 
-                                    target_col_idx = i + 1
-                                    
+                                if "代號" in clean_h: code_col_idx = i + 1
+                                elif ("月增" in clean_h and "累計" not in clean_h) or "M%" in clean_h: mom_col_idx = i + 1
+                                elif ("年增" in clean_h and "累計" not in clean_h) or "Y%" in clean_h: yoy_col_idx = i + 1
+                                elif tm_h in clean_h and "營收" in clean_h and "增" not in clean_h: target_col_idx = i + 1
                             if target_col_idx != -1 and code_col_idx != -1:
                                 row_map = {str(r[code_col_idx-1]).split('.')[0].strip(): idx + 1 for idx, r in enumerate(data) if idx > 0 and len(r) >= code_col_idx and str(r[code_col_idx-1]).strip()}
                                 cells_to_update = []
@@ -712,10 +611,8 @@ if is_admin:
                                         if pd.notna(row['當月營收']): cells_to_update.append(gspread.Cell(row=row_idx, col=target_col_idx, value=round(row['當月營收'] / 100000, 2)))
                                         if mom_col_idx != -1 and pd.notna(row['月增率']): cells_to_update.append(gspread.Cell(row=row_idx, col=mom_col_idx, value=row['月增率']))
                                         if yoy_col_idx != -1 and pd.notna(row['年增率']): cells_to_update.append(gspread.Cell(row=row_idx, col=yoy_col_idx, value=row['年增率']))
-                                
                                 if mom_col_idx != -1: cells_to_update.append(gspread.Cell(row=1, col=mom_col_idx, value="最新單月營收M%"))
                                 if yoy_col_idx != -1: cells_to_update.append(gspread.Cell(row=1, col=yoy_col_idx, value="最新單月營收Y%"))
-                                
                                 if cells_to_update: ws.update_cells(cells_to_update, value_input_option='USER_ENTERED'); cnt += 1
                         if cnt > 0: status.update(label=f"🎉 營收成功寫入 {cnt} 張分頁！", state="complete", expanded=False); st.cache_data.clear(); st.balloons()
                         else: status.update(label=f"⚠️ 無法更新", state="error", expanded=True)
@@ -733,18 +630,20 @@ def render_dataframe(df_source, is_finance=False, is_single=False):
             df["股票名稱"] = df["股票名稱"].astype(str).str.strip()
             df = df.drop_duplicates(subset=["股票名稱"], keep='first')
             
+        # 🔥 總表加入中文名稱的籌碼欄位
         if is_finance: 
             cols = ["股票名稱", "最新股價", "PBR(股價淨值比)", "前瞻殖利率(%)"]
             cols += ["近10年平均合計殖利率(%)", "前瞻PER", "原始PER", "預估今年Q1_EPS"]
             cols += ["實際Q1_EPS", "預估今年度_EPS", "運算配息率(%)", "配息基準"]
             cols += ["當季預估均營收(億)", "最新單月營收M%", "最新單月營收Y%"]
+            cols += ["投信10日買天數", "投信10日買賣超", "外資10日買天數", "外資10日買賣超"]
         else: 
             cols = ["股票名稱", "最新股價", "當季預估均營收", "最新單月營收M%"]
             cols += ["最新單月營收Y%", "季成長率(YoY)%", "前瞻殖利率(%)"]
             cols += ["預估今年Q1_EPS", "實際Q1_EPS", "預估今年度_EPS", "最新累季EPS"]
             cols += ["本益比(PER)", "預估年成長率(%)", "運算配息率(%)"]
-            cols += ["最新業外佔比(%)", "配息基準", "最新季度流動合約負債(億)"]
-            cols += ["最新季度流動合約負債季增(%)"]
+            cols += ["最新業外佔比(%)", "投信10日買天數", "投信10日買賣超", "外資10日買天數", "外資10日買賣超"]
+            cols += ["配息基準", "最新季度流動合約負債(億)", "最新季度流動合約負債季增(%)"]
             
         df = df[[c for c in cols if c in df.columns]]
         for c in df.columns:
@@ -755,7 +654,7 @@ def render_dataframe(df_source, is_finance=False, is_single=False):
         for c in df.columns:
             if c in ["股票名稱", "配息基準"]: continue
             if "(%)" in c or "%" in c: f_dict[c] = "{:.2f}%"
-            elif "次數" in c: f_dict[c] = "{:.0f}"
+            elif "天數" in c or "次數" in c: f_dict[c] = "{:.0f}"
             else: f_dict[c] = "{:.2f}"
             
         def style_yield(s):
@@ -778,7 +677,7 @@ def render_dataframe(df_source, is_finance=False, is_single=False):
             for c in df_safe.columns:
                 if c in ["配息基準"]: continue
                 if "(%)" in c or "%" in c: df_safe[c] = df_safe[c].apply(lambda x: f"{x:.2f}%" if isinstance(x, (int, float)) else x)
-                elif "次數" in c: df_safe[c] = df_safe[c].apply(lambda x: f"{int(x)}" if isinstance(x, (int, float)) else x)
+                elif "天數" in c or "次數" in c: df_safe[c] = df_safe[c].apply(lambda x: f"{int(x)}" if isinstance(x, (int, float)) else x)
                 else: df_safe[c] = df_safe[c].apply(lambda x: f"{x:.2f}" if isinstance(x, (int, float)) else x)
             st.dataframe(df_safe, height=calc_height, use_container_width=True)
     except Exception:
@@ -787,11 +686,8 @@ def render_dataframe(df_source, is_finance=False, is_single=False):
 
 if cached_data:
     db_gen, db_fin = cached_data.get("general", {}), cached_data.get("finance", {})
-    if is_admin: 
-        t_vip, t_radar, t_fin = st.tabs(["🎯 專屬戰略指揮", "🔍 成長戰略雷達", "🏦 金融存股雷達"])
-    else: 
-        t_vip, t_fin = st.tabs(["🎯 專屬戰略指揮", "🏦 金融存股雷達"])
-        t_radar = None
+    if is_admin: t_vip, t_radar, t_fin = st.tabs(["🎯 專屬戰略指揮", "🔍 成長戰略雷達", "🏦 金融存股雷達"])
+    else: t_vip, t_fin = st.tabs(["🎯 專屬戰略指揮", "🏦 金融存股雷達"]); t_radar = None
     
     with t_vip:
         c1, c2 = st.columns([1.2, 1.0])
@@ -806,7 +702,6 @@ if cached_data:
                         found += 1
                         bar.progress((i+1)/len(vips), f"即時連線: {code}")
                         pr = get_realtime_price(code, d.get("price", 0))
-                        
                         r = auto_strategic_model(
                             f"{code} {d['name']}", simulated_month, 
                             d.get("rev_last_10",0), d.get("rev_last_11",0), d.get("rev_last_12",0), 
@@ -841,10 +736,8 @@ if cached_data:
                     sel = st.selectbox("📌 搜尋關注個股：", opts, index=d_idx) if opts else None
                     if sel:
                         row_df = df[df["股票名稱"] == sel].copy()
-                        try: 
-                            row_list = row_df.to_dict('records')
-                        except Exception: 
-                            row_list = []
+                        try: row_list = row_df.to_dict('records')
+                        except Exception: row_list = []
                             
                         if row_list: 
                             try:
@@ -870,15 +763,14 @@ if cached_data:
                                 color_m = "#ff4b4b" if safe_mom > 0 else ("#00aa00" if safe_mom < 0 else "inherit")
                                 color_y = "#ff4b4b" if safe_yoy > 0 else ("#00aa00" if safe_yoy < 0 else "inherit")
                                 
-                                # 🔥 讀取籌碼數據
-                                t_buy_days = get_safe_float(row.get('t_buy_days', 0))
-                                t_net_vol = get_safe_float(row.get('t_net_vol', 0))
-                                f_buy_days = get_safe_float(row.get('f_buy_days', 0))
-                                f_net_vol = get_safe_float(row.get('f_net_vol', 0))
+                                # 🔥 正確讀取中文名稱的籌碼數據
+                                t_buy_days = get_safe_float(row.get('投信10日買天數', 0))
+                                t_net_vol = get_safe_float(row.get('投信10日買賣超', 0))
+                                f_buy_days = get_safe_float(row.get('外資10日買天數', 0))
+                                f_net_vol = get_safe_float(row.get('外資10日買賣超', 0))
                                 
                                 st.markdown("#### 🏷️ 戰情核心指標")
                                 
-                                # 🔥 籌碼動能標籤 (自動變色)
                                 chip_badges = ""
                                 if t_buy_days >= 7 and t_net_vol > 0:
                                     chip_badges += f"<span style='background-color:#ffe6e6; color:#d60000; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:5px;'>🔥 投信狂掃 ({int(t_buy_days)}/10) | 共 {int(t_net_vol):+,} 張</span>"
@@ -890,8 +782,7 @@ if cached_data:
                                 elif (10 - f_buy_days) >= 7 and f_net_vol < 0:
                                     chip_badges += f"<span style='background-color:#e6ffe6; color:#008800; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:5px;'>⚠️ 外資倒貨 ({int(10-f_buy_days)}/10賣) | 共 {int(f_net_vol):+,} 張</span>"
 
-                                if chip_badges:
-                                    st.markdown(f"<div style='margin-bottom:12px;'>{chip_badges}</div>", unsafe_allow_html=True)
+                                if chip_badges: st.markdown(f"<div style='margin-bottom:12px;'>{chip_badges}</div>", unsafe_allow_html=True)
                                 
                                 c_m1, c_m2, c_m3 = st.columns([1, 1.3, 1])
                                 with c_m1:
@@ -899,15 +790,12 @@ if cached_data:
                                     st.metric("前瞻殖利率", f"{safe_yield:.2f} %")
                                 with c_m2:
                                     st.metric("預估今年度 EPS", f"{safe_eps:.2f} 元")
-                                    actual_q1 = row.get('實際Q1_EPS', 0)
-                                    base_q1 = row.get('預估今年Q1_EPS', 0) 
+                                    actual_q1 = row.get('實際Q1_EPS', 0); base_q1 = row.get('預估今年Q1_EPS', 0) 
                                     if actual_q1 > 0:
                                         delta_val = actual_q1 - base_q1
                                         delta_pct = (delta_val / abs(base_q1)) * 100 if base_q1 != 0 else 0
-                                        delta_str = f"{delta_val:.2f} ({delta_pct:+.1f}%)"
-                                        st.metric(f"Q1 實際 (原估 {base_q1:.2f})", f"{actual_q1:.2f} 元", delta_str, delta_color="inverse")
-                                    else:
-                                        st.metric("Q1 預估 EPS (未開獎)", f"{base_q1:.2f} 元")
+                                        st.metric(f"Q1 實際 (原估 {base_q1:.2f})", f"{actual_q1:.2f} 元", f"{delta_val:.2f} ({delta_pct:+.1f}%)", delta_color="inverse")
+                                    else: st.metric("Q1 預估 EPS (未開獎)", f"{base_q1:.2f} 元")
                                         
                                 with c_m3:
                                     st.metric("本益比 (PER)", f"{safe_per:.2f}")
@@ -918,10 +806,8 @@ if cached_data:
                                     f"📊 最新單月營收 M/Y: <span style='color:{color_m}; font-weight:bold;'>{safe_mom:+.2f}%</span> / <span style='color:{color_y}; font-weight:bold;'>{safe_yoy:+.2f}%</span>", 
                                     unsafe_allow_html=True
                                 )
-
                                 if is_admin:
-                                    with st.expander("📝 點此查看預估邏輯"): 
-                                        st.write(str(row.get('_logic_note', '無紀錄')))
+                                    with st.expander("📝 點此查看預估邏輯"): st.write(str(row.get('_logic_note', '無紀錄')))
                             except Exception: pass
                 
                 with c2:
@@ -948,13 +834,11 @@ if cached_data:
                                     if m_revs_q2[1] > 0: d_viz.append({"季度": q, "類別": "B.今年", "項目": "5月營收", "營收(億)": m_revs_q2[1]})
                                     if m_revs_q2[2] > 0: d_viz.append({"季度": q, "類別": "B.今年", "項目": "6月營收", "營收(億)": m_revs_q2[2]})
                                     if sum(m_revs_q2) == 0: d_viz.append({"季度": q, "類別": "B.今年", "項目": "已公布", "營收(億)": 0}) 
-                                else: 
-                                    d_viz.append({"季度": q, "類別": "B.今年", "項目": "已公布", "營收(億)": clean_val_list(row.get("_known_qs", [0,0,0,0]), i)})
+                                else: d_viz.append({"季度": q, "類別": "B.今年", "項目": "已公布", "營收(億)": clean_val_list(row.get("_known_qs", [0,0,0,0]), i)})
                                 d_viz.append({"季度": q, "類別": "C.預估", "項目": "預估標竿", "營收(億)": clean_val_list(row.get("_total_est_qs", [0,0,0,0]), i)})
                                 
                             base_chart = alt.Chart(pd.DataFrame(d_viz)).encode(
-                                x=alt.X('類別:N', axis=None), 
-                                y=alt.Y('營收(億):Q', title=None),
+                                x=alt.X('類別:N', axis=None), y=alt.Y('營收(億):Q', title=None),
                                 column=alt.Column('季度:N', header=alt.Header(title=None, labelOrient='bottom'))
                             )
 
@@ -999,28 +883,13 @@ if cached_data:
                 
             if st.button("📡 全市場掃描", type="primary"):
                 with st.spinner("極速掃描中..."):
-                    
-                    ex_list = ["1316","1436","1438","1439","1442","1453","1456","1472","1805","1808"]
-                    ex_list += ["2442","2501","2504","2505","2506","2509","2511","2515","2516","2520"]
-                    ex_list += ["2524","2527","2528","2530","2534","2535","2536","2537","2538","2539"]
-                    ex_list += ["2540","2542","2543","2545","2546","2547","2548","2596","2597","2718"]
-                    ex_list += ["2923","3052","3056","3188","3266","3489","3512","3521","3703","4113"]
-                    ex_list += ["4416","4907","5206","5213","5324","5455","5508","5511","5512","5514"]
-                    ex_list += ["5515","5516","5519","5520","5521","5522","5523","5525","5529","5531"]
-                    ex_list += ["5533","5534","5543","5546","5547","5548","6171","6177","6186","6198"]
-                    ex_list += ["6212","6219","6264","8080","8424","9906","9946","2880","2881","2882"]
-                    ex_list += ["2883","2884","2885","2886","2887","2889","2890","2891","2892","5880"]
-                    ex_list += ["2816","2832","2850","2851","2852","2867","5878","2801","2812","2820"]
-                    ex_list += ["2834","2836","2838","2845","2849","2897","5876","6016","6020","2855"]
-                    ex_list += ["6015","6005","6026","6024","6023","6021","5864"]
+                    ex_list = ["1316","1436","1438","1439","1442","1453","1456","1472","1805","1808","2442","2501","2504","2505","2506","2509","2511","2515","2516","2520","2524","2527","2528","2530","2534","2535","2536","2537","2538","2539","2540","2542","2543","2545","2546","2547","2548","2596","2597","2718","2923","3052","3056","3188","3266","3489","3512","3521","3703","4113","4416","4907","5206","5213","5324","5455","5508","5511","5512","5514","5515","5516","5519","5520","5521","5522","5523","5525","5529","5531","5533","5534","5543","5546","5547","5548","6171","6177","6186","6198","6212","6219","6264","8080","8424","9906","9946","2880","2881","2882","2883","2884","2885","2886","2887","2889","2890","2891","2892","5880","2816","2832","2850","2851","2852","2867","5878","2801","2812","2820","2834","2836","2838","2845","2849","2897","5876","6016","6020","2855","6015","6005","6026","6024","6023","6021","5864"]
                     exclude_codes = set(ex_list)
-                    
                     kws = [k.strip() for k in re.split(r'[;,\s\t]+', ex_kws) if k.strip()]
                     res_list = []
                     for code, d in db_gen.items():
                         if code in exclude_codes or (kws and any((k in d["name"] or code.startswith(k)) for k in kws)): continue
                         pr = float(d.get("price", 0)) if d.get("price") else 0.0
-                        
                         r = auto_strategic_model(
                             f"{code} {d['name']}", simulated_month, 
                             d.get("rev_last_10",0), d.get("rev_last_11",0), d.get("rev_last_12",0), 
@@ -1032,16 +901,10 @@ if cached_data:
                             d.get("payout",0), pr, d.get("contract_liab",0), d.get("contract_liab_qoq",0), 
                             d.get("acc_eps",0), d.get("declared_div",0), d.get("actual_q1_eps",0),
                             d.get("latest_mom", 0), d.get("latest_yoy", 0),
-                            d.get("t_buy_days", 0), d.get("t_net_vol", 0),
-                            d.get("f_buy_days", 0), d.get("f_net_vol", 0)
+                            d.get("t_buy_days", 0), d.get("t_net_vol", 0), d.get("f_buy_days", 0), d.get("f_net_vol", 0)
                         )
                         
-                        ly_q1_avg, ly_q2 = r["_ly_qs"][0]/3, r["_ly_qs"][1]
-                        ly_11_12_avg = r["_total_est_qs"][0]/3
-                        est_q1 = r["當季預估均營收"] * 3
-                        est_q2_avg = r["_total_est_qs"][1]/3
-                        best_q1_avg = (r["_known_qs"][0] if simulated_month >= 4 else est_q1)/3
-                        
+                        ly_q1_avg, ly_q2 = r["_ly_qs"][0]/3, r["_ly_qs"][1]; ly_11_12_avg = r["_total_est_qs"][0]/3; est_q1 = r["當季預估均營收"] * 3; est_q2_avg = r["_total_est_qs"][1]/3; best_q1_avg = (r["_known_qs"][0] if simulated_month >= 4 else est_q1)/3
                         if (s1 and not (ly_11_12_avg > ly_q1_avg)) or (s2 and not (est_q1 > ly_q2)) or (s3 and not (est_q2_avg >= best_q1_avg and est_q2_avg*3 > ly_q2)) or r["預估年成長率(%)"] < f_grow or (f_y > 0 and r["前瞻殖利率(%)"] < f_y) or (f_per < 50 and (r["本益比(PER)"] <= 0 or r["本益比(PER)"] > f_per)): continue
                         res_list.append(r)
                         
@@ -1057,7 +920,5 @@ if cached_data:
                 for c, d in db_fin.items():
                     if d.get("pbr",0) > 0: 
                         res_list.append(financial_strategic_model(d["name"], c.strip(), simulated_month, d, simulated_month, d.get("actual_q1_eps",0), d.get("latest_mom", 0), d.get("latest_yoy", 0), d.get("t_buy_days", 0), d.get("t_net_vol", 0), d.get("f_buy_days", 0), d.get("f_net_vol", 0)))
-                if not res_list: 
-                    st.warning("無符合條件的金融股")
-                else: 
-                    render_dataframe(pd.DataFrame(res_list).sort_values(by=['PBR(股價淨值比)', '前瞻殖利率(%)'], ascending=[True, False]), is_finance=True)
+                if not res_list: st.warning("無符合條件的金融股")
+                else: render_dataframe(pd.DataFrame(res_list).sort_values(by=['PBR(股價淨值比)', '前瞻殖利率(%)'], ascending=[True, False]), is_finance=True)
