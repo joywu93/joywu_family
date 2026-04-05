@@ -1,6 +1,6 @@
 # ==========================================
-# 📂 檔案名稱： update_chips.py (上櫃自動尋標版)
-# 💡 任務：自動測試多種上櫃 API 格式，強制把資料挖出來！
+# 📂 檔案名稱： update_chips.py (上櫃終極潛行版)
+# 💡 任務：引入 Session 維持 Cookie、加上防護罩，突破櫃買中心防火牆！
 # ==========================================
 
 import os
@@ -32,16 +32,24 @@ def clean_num(s):
     except: return 0
 
 def fetch_10_days_chips():
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    # 🛡️ 建立 Session，這非常重要！可以幫我們記住 Server 發的 Cookie，證明我們不是惡意機器人
+    session = requests.Session()
+    
+    # 🎭 掛上完整的瀏覽器擬真 Header
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
-        'X-Requested-With': 'XMLHttpRequest'
-    }
+        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Referer': 'https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge.php',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Connection': 'keep-alive'
+    })
+    
     chip_stats = {}
     valid_days = 0
     current_date = datetime.now()
     
-    print("🚀 開始啟動籌碼雷達，啟用上櫃自動尋標模式...")
+    print("🚀 開始啟動籌碼雷達，啟用上櫃『終極潛行模式』...")
 
     for _ in range(30):
         if valid_days >= 10: break
@@ -50,26 +58,23 @@ def fetch_10_days_chips():
             continue
             
         dt_str = current_date.strftime("%Y%m%d")
-        
-        # 準備各種日期格式
         roc_y = current_date.year - 1911
-        west_y = current_date.year
         m_pad = current_date.strftime('%m')
         d_pad = current_date.strftime('%d')
-        m_no = str(current_date.month)
-        d_no = str(current_date.day)
-
+        
         twse_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={dt_str}&selectType=ALL&response=json"
+        # 上櫃：回歸最穩定、不帶額外參數的全市場 API
+        tpex_url = f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={roc_y}/{m_pad}/{d_pad}"
         
         day_has_data = False
         twse_count = 0
         tpex_count = 0
         
         # ==========================================
-        # 1. 抓取上市 (TWSE) - 維持不變
+        # 1. 抓取上市 (TWSE)
         # ==========================================
         try:
-            res_twse = requests.get(twse_url, headers=headers, timeout=10, verify=False).json()
+            res_twse = session.get(twse_url, timeout=10, verify=False).json()
             if res_twse.get('stat') == 'OK' and 'data' in res_twse:
                 twse_count = len(res_twse['data'])
                 day_has_data = True
@@ -93,66 +98,53 @@ def fetch_10_days_chips():
             print(f"  [上市錯誤] {dt_str}: {e}")
 
         # ==========================================
-        # 2. 抓取上櫃 (TPEx) - 自動尋標探測器
+        # 2. 抓取上櫃 (Session 潛行版)
         # ==========================================
-        # 櫃買 API 常常偷偷變更參數，我們一次準備 4 種最常見的合法組合來撞擊
-        tpex_urls_to_try = [
-            # 策略A：傳統民國年，省略 se 參數 (預設抓全市場，最可能成功)
-            f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={roc_y}/{m_pad}/{d_pad}",
-            # 策略B：改用西元年 (部分新版 API 已經強制改西元)
-            f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={west_y}/{m_pad}/{d_pad}",
-            # 策略C：傳統民國年 + se=EW (退而求其次，只抓電子類)
-            f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={roc_y}/{m_pad}/{d_pad}&se=EW",
-            # 策略D：民國年但不補零
-            f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={roc_y}/{m_no}/{d_no}"
-        ]
-
-        res_tpex_data = None
-        success_strategy = ""
-
-        # 開始輪替測試
-        for idx, test_url in enumerate(tpex_urls_to_try):
+        # 🛡️ 智能防禦：只有當「上市有資料(有開盤)」時，我們才去戳上櫃 API，避免在假日無意義連線被鎖 IP
+        if twse_count > 0: 
             try:
-                res_tpex = requests.get(test_url, headers=headers, timeout=5, verify=False).json()
-                if 'aaData' in res_tpex and len(res_tpex['aaData']) > 0:
-                    res_tpex_data = res_tpex['aaData']
-                    success_strategy = f"策略 {idx+1}"
-                    break  # 只要其中一個成功，就立刻跳出測試迴圈
-            except Exception:
-                continue # 失敗就默默換下一個網址測試
+                res_tpex_raw = session.get(tpex_url, timeout=10, verify=False)
+                
+                # 偵測是否被防火牆阻擋 (回傳 HTML 而不是 JSON)
+                if res_tpex_raw.status_code != 200 or 'html' in res_tpex_raw.text.lower()[:100]:
+                    print(f"  [上櫃阻擋] {dt_str}: 遭遇防火牆！伺服器回應：{res_tpex_raw.text[:80]}...")
+                else:
+                    res_tpex = res_tpex_raw.json()
+                    
+                    if 'aaData' in res_tpex and len(res_tpex['aaData']) > 0:
+                        tpex_count = len(res_tpex['aaData'])
+                        for row in res_tpex['aaData']:
+                            code = str(row[0]).strip()
+                            try:
+                                # 🎯 【凡甲除錯器】印出凡甲的原始資料
+                                if code == "3526":
+                                    print(f"  👉 找到凡甲(3526)！外資格: {row[8]} | 投信格: {row[11]}")
 
-        if res_tpex_data:
-            tpex_count = len(res_tpex_data)
-            day_has_data = True
-            for row in res_tpex_data:
-                code = str(row[0]).strip()
-                try:
-                    # 🎯 【凡甲除錯器】印出凡甲的原始資料！
-                    if code == "3526":
-                        print(f"  👉 找到凡甲(3526)！使用{success_strategy} | 外資格: {row[8]} | 投信格: {row[11]}")
-
-                    if len(row) > 11:
-                        f_net = clean_num(row[8]) // 1000  
-                        t_net = clean_num(row[11]) // 1000 
+                                if len(row) > 11:
+                                    f_net = clean_num(row[8]) // 1000  
+                                    t_net = clean_num(row[11]) // 1000 
+                                    
+                                    if code not in chip_stats: chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
+                                    if f_net > 0: chip_stats[code]['f_days'] += 1
+                                    chip_stats[code]['f_vol'] += f_net
+                                    if t_net > 0: chip_stats[code]['t_days'] += 1
+                                    chip_stats[code]['t_vol'] += t_net
+                            except Exception as e: 
+                                if code == "3526": print(f"  ❌ 凡甲解析失敗: {e}")
+                    else:
+                        print(f"  [上櫃警告] {dt_str}: 解析成功，但 aaData 為空 (可能是伺服器延遲或軟封鎖)")
                         
-                        if code not in chip_stats: chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
-                        if f_net > 0: chip_stats[code]['f_days'] += 1
-                        chip_stats[code]['f_vol'] += f_net
-                        if t_net > 0: chip_stats[code]['t_days'] += 1
-                        chip_stats[code]['t_vol'] += t_net
-                except Exception as e: 
-                    if code == "3526": print(f"  ❌ 凡甲解析失敗: {e}")
-        else:
-            # 如果這天上市有資料，但上櫃 4 個策略都失敗，才印出警告
-            if twse_count > 0:
-                print(f"  [上櫃警告] {dt_str}: 所有 API 參數策略皆無法取得 aaData！")
+            except Exception as e:
+                print(f"  [上櫃連線失敗] {dt_str}: {e}")
 
         if day_has_data:
             valid_days += 1
             print(f"✅ {dt_str} | 上市: {twse_count}筆 | 上櫃: {tpex_count}筆 (進度: {valid_days}/10)")
             
         current_date -= timedelta(days=1)
-        time.sleep(2) 
+        
+        # ⏳ 放慢腳步：將休息時間延長到 5 秒，避免引發 Cloudflare 防火牆警戒
+        time.sleep(5) 
         
     return chip_stats
 
