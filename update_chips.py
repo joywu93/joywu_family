@@ -1,9 +1,10 @@
 # ==========================================
-# 📂 檔案名稱： update_chips.py (GitHub 雲端全自動版)
-# 💡 任務：拿掉憑證檢查，並啟用 Cloudscraper 嘗試突破海外 IP 封鎖
+# 📂 檔案名稱： update_chips.py (雲端/本地 雙棲智慧版)
+# 💡 任務：自動適應 TPEx 官方新版 API，並完美支援 GitHub 雲端全自動排程
 # ==========================================
 
 import os
+import sys
 import gspread
 import json
 import time
@@ -11,7 +12,7 @@ import re
 from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
 import urllib3
-import cloudscraper
+import requests
 
 # 關閉 SSL 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -19,11 +20,35 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 MASTER_GSHEET_URL = "https://docs.google.com/spreadsheets/d/1s4dIaZb4FLOHrn_hwreHPkDKSobgtlaqFJjnsQiO1F4/edit"
 
 def get_gspread_client():
+    # 1. 先嘗試讀取 GitHub Secrets 的環境變數 (雲端模式)
     key_data = os.environ.get("GOOGLE_CREDENTIALS") or os.environ.get("GOOGLE_KEY_JSON")
-    if not key_data: raise ValueError("找不到 Google 金鑰，請檢查 GitHub Secrets 設定！")
-    creds_dict = json.loads(key_data)
-    creds = Credentials.from_service_account_info(creds_dict, scopes=['https://www.googleapis.com/auth/spreadsheets'])
-    return gspread.authorize(creds)
+    
+    if key_data:
+        print("☁️ 偵測到 GitHub 雲端環境，載入 Secrets 金鑰中...")
+        creds_dict = json.loads(key_data)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=['https://www.googleapis.com/auth/spreadsheets'])
+        return gspread.authorize(creds)
+        
+    # 2. 如果沒有環境變數，再嘗試讀取本地檔案 (本地除錯模式)
+    try:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+    except NameError:
+        script_dir = os.getcwd()
+        
+    try:
+        json_files = [f for f in os.listdir(script_dir) if f.lower().endswith('.json')]
+        for jf in json_files:
+            try:
+                key_path = os.path.join(script_dir, jf)
+                creds = Credentials.from_service_account_file(key_path, scopes=['https://www.googleapis.com/auth/spreadsheets'])
+                print(f"💻 成功讀取本地金鑰檔案：{jf}")
+                return gspread.authorize(creds)
+            except Exception:
+                continue 
+    except Exception:
+        pass
+    
+    raise ValueError("❌ 找不到 Google 金鑰！請確認 GitHub Secrets 設定是否正確。")
 
 def clean_num(s):
     s = re.sub(r'<[^>]*>', '', str(s)).replace(',', '').strip()
@@ -32,18 +57,16 @@ def clean_num(s):
     except: return 0
 
 def fetch_10_days_chips():
-    # 啟動 Cloudscraper 模擬真實的 Chrome 瀏覽器
-    scraper = cloudscraper.create_scraper(browser={
-        'browser': 'chrome',
-        'platform': 'windows',
-        'desktop': True
+    session = requests.Session()
+    session.headers.update({
+        'User-Agent': 'Mozilla/5.0'
     })
     
     chip_stats = {}
     valid_days = 0
     current_date = datetime.now()
     
-    print("🚀 開始啟動籌碼雷達，GitHub 雲端全自動版執行中...")
+    print("🚀 開始啟動籌碼雷達，執行雲端智慧解析...")
 
     for _ in range(30):
         if valid_days >= 10: break
@@ -57,6 +80,7 @@ def fetch_10_days_chips():
         d_pad = current_date.strftime('%d')
         
         twse_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={dt_str}&selectType=ALL&response=json"
+        # 移除干擾參數，回歸最單純的網址
         tpex_url = f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={roc_y}/{m_pad}/{d_pad}"
         
         day_has_data = False
@@ -67,8 +91,7 @@ def fetch_10_days_chips():
         # 1. 抓取上市 (TWSE)
         # ==========================================
         try:
-            # 💡 這裡已經把 verify=False 拿掉了
-            res_twse = scraper.get(twse_url, timeout=15).json()
+            res_twse = session.get(twse_url, timeout=15, verify=False).json()
             if res_twse.get('stat') == 'OK' and 'data' in res_twse:
                 twse_count = len(res_twse['data'])
                 day_has_data = True
@@ -89,40 +112,49 @@ def fetch_10_days_chips():
                         chip_stats[code]['f_vol'] += f_net
                         if t_net > 0: chip_stats[code]['t_days'] += 1
                         chip_stats[code]['t_vol'] += t_net
-        except Exception as e:
-            print(f"  [上市錯誤] {dt_str}: {e}")
+        except Exception:
+            pass
 
         # ==========================================
-        # 2. 抓取上櫃 (TPEx)
+        # 2. 抓取上櫃 (TPEx) - 智慧解析
         # ==========================================
         if twse_count > 0: 
             try:
-                # 💡 這裡已經把 verify=False 拿掉了
-                res_tpex_raw = scraper.get(tpex_url, timeout=15)
+                res_tpex_raw = session.get(tpex_url, timeout=15, verify=False)
                 
-                if res_tpex_raw.status_code != 200 or 'html' in res_tpex_raw.text.lower()[:100]:
-                    print(f"  [上櫃阻擋] {dt_str}: 伺服器回應異常，可能仍被防火牆阻擋。")
-                else:
-                    res_tpex = res_tpex_raw.json()
-                    
-                    if 'aaData' in res_tpex and len(res_tpex['aaData']) > 0:
-                        tpex_count = len(res_tpex['aaData'])
-                        for row in res_tpex['aaData']:
-                            code = str(row[0]).strip()
-                            try:
-                                if len(row) > 11:
-                                    f_net = clean_num(row[8]) // 1000  
-                                    t_net = clean_num(row[11]) // 1000 
-                                    
-                                    if code not in chip_stats: chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
-                                    if f_net > 0: chip_stats[code]['f_days'] += 1
-                                    chip_stats[code]['f_vol'] += f_net
-                                    if t_net > 0: chip_stats[code]['t_days'] += 1
-                                    chip_stats[code]['t_vol'] += t_net
-                            except Exception: 
-                                pass
-            except Exception as e:
-                print(f"  [上櫃連線失敗] {dt_str}: {e}")
+                if res_tpex_raw.status_code == 200 and 'html' not in res_tpex_raw.text.lower()[:100]:
+                    try:
+                        res_tpex = res_tpex_raw.json()
+                        tpex_data_list = []
+                        
+                        # 破解新版包裝：自動尋找 tables 或 aaData
+                        if 'tables' in res_tpex and len(res_tpex['tables']) > 0 and 'data' in res_tpex['tables'][0]:
+                            tpex_data_list = res_tpex['tables'][0]['data']
+                        elif 'aaData' in res_tpex:
+                            tpex_data_list = res_tpex['aaData']
+                        elif 'data' in res_tpex:
+                            tpex_data_list = res_tpex['data']
+                            
+                        if len(tpex_data_list) > 0:
+                            tpex_count = len(tpex_data_list)
+                            for row in tpex_data_list:
+                                code = str(row[0]).strip()
+                                try:
+                                    if len(row) > 13:
+                                        f_net = clean_num(row[10]) // 1000  
+                                        t_net = clean_num(row[13]) // 1000 
+                                        
+                                        if code not in chip_stats: chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
+                                        if f_net > 0: chip_stats[code]['f_days'] += 1
+                                        chip_stats[code]['f_vol'] += f_net
+                                        if t_net > 0: chip_stats[code]['t_days'] += 1
+                                        chip_stats[code]['t_vol'] += t_net
+                                except Exception: 
+                                    pass
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
         if day_has_data:
             valid_days += 1
@@ -153,7 +185,6 @@ def update_gsheet_chips(chip_stats):
         i_f_vol = next((i for i, x in enumerate(h) if "外資10日買賣超" in str(x)), -1)
         
         if i_code == -1:
-            print(f"  ⚠️ 分頁 [{ws.title}] 找不到包含「代號」的欄位，跳過更新。")
             continue
 
         cells = []
