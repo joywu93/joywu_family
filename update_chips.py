@@ -1,6 +1,6 @@
 # ==========================================
-# 📂 檔案名稱： update_chips.py (上櫃終極除錯版)
-# 💡 任務：掛上最強偽裝器，並印出「凡甲」原始資料來抓 Bug！
+# 📂 檔案名稱： update_chips.py (上櫃自動尋標版)
+# 💡 任務：自動測試多種上櫃 API 格式，強制把資料挖出來！
 # ==========================================
 
 import os
@@ -32,7 +32,6 @@ def clean_num(s):
     except: return 0
 
 def fetch_10_days_chips():
-    # 🔥 換上最強的瀏覽器偽裝，突破官方防火牆
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
@@ -42,7 +41,7 @@ def fetch_10_days_chips():
     valid_days = 0
     current_date = datetime.now()
     
-    print("🚀 開始啟動籌碼雷達，專注測試上櫃資料...")
+    print("🚀 開始啟動籌碼雷達，啟用上櫃自動尋標模式...")
 
     for _ in range(30):
         if valid_days >= 10: break
@@ -51,20 +50,25 @@ def fetch_10_days_chips():
             continue
             
         dt_str = current_date.strftime("%Y%m%d")
+        
+        # 準備各種日期格式
         roc_y = current_date.year - 1911
-        tpex_str = f"{roc_y}/{current_date.strftime('%m/%d')}"
-        
+        west_y = current_date.year
+        m_pad = current_date.strftime('%m')
+        d_pad = current_date.strftime('%d')
+        m_no = str(current_date.month)
+        d_no = str(current_date.day)
+
         twse_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={dt_str}&selectType=ALL&response=json"
-        
-        # 🐛 這裡把原本的 se=EW 改成 se=AL (全部)，才能抓到凡甲等所有上櫃股票
-        tpex_url = f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={tpex_str}&se=AL"
         
         day_has_data = False
         twse_count = 0
         tpex_count = 0
         
+        # ==========================================
+        # 1. 抓取上市 (TWSE) - 維持不變
+        # ==========================================
         try:
-            # 1. 上市 (TWSE)
             res_twse = requests.get(twse_url, headers=headers, timeout=10, verify=False).json()
             if res_twse.get('stat') == 'OK' and 'data' in res_twse:
                 twse_count = len(res_twse['data'])
@@ -88,38 +92,64 @@ def fetch_10_days_chips():
         except Exception as e:
             print(f"  [上市錯誤] {dt_str}: {e}")
 
-        try:
-            # 2. 上櫃 (TPEx) - 加入除錯追蹤
-            res_tpex = requests.get(tpex_url, headers=headers, timeout=10, verify=False).json()
-            if 'aaData' in res_tpex and len(res_tpex['aaData']) > 0:
-                tpex_count = len(res_tpex['aaData'])
-                day_has_data = True
-                for row in res_tpex['aaData']:
-                    code = str(row[0]).strip()
-                    try:
-                        # 🎯 【凡甲除錯器】印出凡甲的原始資料！
-                        if code == "3526":
-                            print(f"  👉 找到凡甲(3526)！總欄數: {len(row)} | 外資格: {row[8]} | 投信格: {row[11]}")
+        # ==========================================
+        # 2. 抓取上櫃 (TPEx) - 自動尋標探測器
+        # ==========================================
+        # 櫃買 API 常常偷偷變更參數，我們一次準備 4 種最常見的合法組合來撞擊
+        tpex_urls_to_try = [
+            # 策略A：傳統民國年，省略 se 參數 (預設抓全市場，最可能成功)
+            f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={roc_y}/{m_pad}/{d_pad}",
+            # 策略B：改用西元年 (部分新版 API 已經強制改西元)
+            f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={west_y}/{m_pad}/{d_pad}",
+            # 策略C：傳統民國年 + se=EW (退而求其次，只抓電子類)
+            f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={roc_y}/{m_pad}/{d_pad}&se=EW",
+            # 策略D：民國年但不補零
+            f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={roc_y}/{m_no}/{d_no}"
+        ]
 
-                        if len(row) > 11:
-                            f_net = clean_num(row[8]) // 1000  
-                            t_net = clean_num(row[11]) // 1000 
-                            
-                            if code not in chip_stats: chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
-                            if f_net > 0: chip_stats[code]['f_days'] += 1
-                            chip_stats[code]['f_vol'] += f_net
-                            if t_net > 0: chip_stats[code]['t_days'] += 1
-                            chip_stats[code]['t_vol'] += t_net
-                    except Exception as e: 
-                        if code == "3526": print(f"  ❌ 凡甲解析失敗: {e}")
-            else:
-                print(f"  [上櫃警告] {dt_str}: 成功連線，但 aaData 裡面沒有資料！")
-        except Exception as e:
-            print(f"  [上櫃連線失敗] {dt_str}: {e}")
+        res_tpex_data = None
+        success_strategy = ""
+
+        # 開始輪替測試
+        for idx, test_url in enumerate(tpex_urls_to_try):
+            try:
+                res_tpex = requests.get(test_url, headers=headers, timeout=5, verify=False).json()
+                if 'aaData' in res_tpex and len(res_tpex['aaData']) > 0:
+                    res_tpex_data = res_tpex['aaData']
+                    success_strategy = f"策略 {idx+1}"
+                    break  # 只要其中一個成功，就立刻跳出測試迴圈
+            except Exception:
+                continue # 失敗就默默換下一個網址測試
+
+        if res_tpex_data:
+            tpex_count = len(res_tpex_data)
+            day_has_data = True
+            for row in res_tpex_data:
+                code = str(row[0]).strip()
+                try:
+                    # 🎯 【凡甲除錯器】印出凡甲的原始資料！
+                    if code == "3526":
+                        print(f"  👉 找到凡甲(3526)！使用{success_strategy} | 外資格: {row[8]} | 投信格: {row[11]}")
+
+                    if len(row) > 11:
+                        f_net = clean_num(row[8]) // 1000  
+                        t_net = clean_num(row[11]) // 1000 
+                        
+                        if code not in chip_stats: chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
+                        if f_net > 0: chip_stats[code]['f_days'] += 1
+                        chip_stats[code]['f_vol'] += f_net
+                        if t_net > 0: chip_stats[code]['t_days'] += 1
+                        chip_stats[code]['t_vol'] += t_net
+                except Exception as e: 
+                    if code == "3526": print(f"  ❌ 凡甲解析失敗: {e}")
+        else:
+            # 如果這天上市有資料，但上櫃 4 個策略都失敗，才印出警告
+            if twse_count > 0:
+                print(f"  [上櫃警告] {dt_str}: 所有 API 參數策略皆無法取得 aaData！")
 
         if day_has_data:
             valid_days += 1
-            print(f"✅ {dt_str} | 上市: {twse_count}筆 | 上櫃: {tpex_count}筆 (收集進度: {valid_days}/10)")
+            print(f"✅ {dt_str} | 上市: {twse_count}筆 | 上櫃: {tpex_count}筆 (進度: {valid_days}/10)")
             
         current_date -= timedelta(days=1)
         time.sleep(2) 
