@@ -667,4 +667,77 @@ if cached_data:
                     cc6.metric("預估年成長率", f"{row['預估年成長率(%)']:.2f} %")
                     
                     st.markdown("---")
-                    st.markdown(f"📈 業外佔比: {row['最新業外佔比(%)']:.2f}% &
+                    st.markdown(f"📈 業外佔比: {row['最新業外佔比(%)']:.2f}% &nbsp;｜&nbsp; 📉 合約負債: {row['最新季度流動合約負債(億)']:.2f}億 ({row['最新季度流動合約負債季增(%)']:.2f}%)")
+                    
+                    # 🌟 將營收與籌碼合併在同一個區塊，並強制籌碼在營收正下方單行顯示
+                    mom_color = "green" if row['最新單月營收M%'] > 0 else "red"
+                    yoy_color = "green" if row['最新單月營收Y%'] > 0 else "red"
+                    
+                    t_days = int(row.get('投信10日買天數', 0))
+                    t_vol = int(row.get('投信10日買賣超', 0))
+                    if t_vol > 0:
+                        t_class, t_text = "t-buy", f"🔴 投信連買 ({t_days}/10) | +{t_vol} 張"
+                    elif t_vol < 0:
+                        t_class, t_text = "t-sell", f"🟢 投信倒貨 ({t_days}/10) | {t_vol} 張"
+                    else:
+                        t_class, t_text = "t-neutral", "⚪ 投信無動靜"
+
+                    f_days = int(row.get('外資10日買天數', 0))
+                    f_vol = int(row.get('外資10日買賣超', 0))
+                    if f_vol > 0:
+                        f_class, f_text = "f-buy", f"🔴 外資連買 ({f_days}/10) | +{f_vol} 張"
+                    elif f_vol < 0:
+                        f_class, f_text = "f-sell", f"🟢 外資倒貨 ({f_days}/10) | {f_vol} 張"
+                    else:
+                        f_class, f_text = "f-neutral", "⚪ 外資無動靜"
+
+                    # 🌟 HTML 與 CSS 渲染：強迫籌碼單行不換行！
+                    st.markdown(f"""
+                        <div style="margin-bottom: 15px;">
+                            📊 最新單月營收 M/Y: 
+                            <strong style="color:{mom_color}">{row['最新單月營收M%']:.2f}%</strong> / 
+                            <strong style="color:{yoy_color}">{row['最新單月營收Y%']:.2f}%</strong>
+                            <div class="chip-badge-container">
+                                <span class="chip-badge {t_class}">{t_text}</span>
+                                <span class="chip-badge {f_class}">{f_text}</span>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    with st.expander("📝 點此查看預估邏輯"):
+                        st.info(f"**EPS 演算法:** {row['_logic_note']}\n\n**配息演算法:** {row['配息基準']} ({row['運算配息率(%)']}%)")
+                        
+                with c2:
+                    st.markdown(" ")
+                    st.markdown(" ")
+                    st.markdown(" ")
+                    k_m1, k_m2, k_m3 = row["_known_q1_months"]
+                    k_m4, k_m5, k_m6 = row["_known_q2_months"]
+                    
+                    plot_data = []
+                    ly_q1, ly_q2 = row["_ly_qs"][0], row["_ly_qs"][1]
+                    plot_data.append({"Quarter": "Q1", "Type": "去年實際", "Value": ly_q1})
+                    if k_m1 > 0: plot_data.append({"Quarter": "Q1", "Type": "1月營收", "Value": k_m1})
+                    if k_m2 > 0: plot_data.append({"Quarter": "Q1", "Type": "2月營收", "Value": k_m2})
+                    if k_m3 > 0: plot_data.append({"Quarter": "Q1", "Type": "3月營收", "Value": k_m3})
+                    plot_data.append({"Quarter": "Q1", "Type": "今年預估總計", "Value": row["_total_est_qs"][0]})
+                    
+                    plot_data.append({"Quarter": "Q2", "Type": "去年實際", "Value": ly_q2})
+                    if k_m4 > 0: plot_data.append({"Quarter": "Q2", "Type": "4月營收", "Value": k_m4})
+                    if k_m5 > 0: plot_data.append({"Quarter": "Q2", "Type": "5月營收", "Value": k_m5})
+                    if k_m6 > 0: plot_data.append({"Quarter": "Q2", "Type": "6月營收", "Value": k_m6})
+                    plot_data.append({"Quarter": "Q2", "Type": "今年預估總計", "Value": row["_total_est_qs"][1]})
+                    
+                    df_plot = pd.DataFrame(plot_data)
+                    color_scale = alt.Scale(domain=["去年實際", "1月營收", "2月營收", "3月營收", "4月營收", "5月營收", "6月營收", "今年預估總計"], range=["#003f5c", "#bc5090", "#ff6361", "#ffa600", "#58508d", "#ff8531", "#8a508f", "#ff4b4b"])
+                    
+                    chart = alt.Chart(df_plot).mark_bar(size=25).encode(
+                        x=alt.X('Quarter:N', title=None, axis=alt.Axis(labelAngle=0, labelFontSize=12)),
+                        y=alt.Y('Value:Q', title=None),
+                        color=alt.Color('Type:N', scale=color_scale, legend=alt.Legend(title=None, orient="bottom", columns=4)),
+                        xOffset=alt.XOffset('Type:N', sort=["去年實際", "1月營收", "2月營收", "3月營收", "4月營收", "5月營收", "6月營收", "今年預估總計"])
+                    ).properties(height=320)
+                    st.altair_chart(chart, use_container_width=True)
+                
+            st.markdown("---")
+            render_dataframe(st.session_state.get("df_vip"))
