@@ -1,6 +1,6 @@
 # ==========================================
-# 📂 檔案名稱： update_chips.py (Cloudscraper 破甲版)
-# 💡 任務：使用專門對付 Cloudflare 的破甲套件來繞過阻擋！
+# 📂 檔案名稱： update_chips.py (GitHub 雲端全自動版)
+# 💡 任務：拿掉憑證檢查，並啟用 Cloudscraper 嘗試突破海外 IP 封鎖
 # ==========================================
 
 import os
@@ -11,7 +11,7 @@ import re
 from datetime import datetime, timedelta
 from google.oauth2.service_account import Credentials
 import urllib3
-import cloudscraper # 🛡️ 引入新的破甲套件
+import cloudscraper
 
 # 關閉 SSL 警告
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -32,7 +32,7 @@ def clean_num(s):
     except: return 0
 
 def fetch_10_days_chips():
-    # 🛡️ 啟動 Cloudscraper 模擬真實的 Chrome 瀏覽器，用來繞過防火牆
+    # 啟動 Cloudscraper 模擬真實的 Chrome 瀏覽器
     scraper = cloudscraper.create_scraper(browser={
         'browser': 'chrome',
         'platform': 'windows',
@@ -43,7 +43,7 @@ def fetch_10_days_chips():
     valid_days = 0
     current_date = datetime.now()
     
-    print("🚀 開始啟動籌碼雷達，啟用『Cloudscraper 破甲模式』...")
+    print("🚀 開始啟動籌碼雷達，GitHub 雲端全自動版執行中...")
 
     for _ in range(30):
         if valid_days >= 10: break
@@ -67,16 +67,18 @@ def fetch_10_days_chips():
         # 1. 抓取上市 (TWSE)
         # ==========================================
         try:
-            res_twse = scraper.get(twse_url, timeout=15, verify=False).json()
+            # 💡 這裡已經把 verify=False 拿掉了
+            res_twse = scraper.get(twse_url, timeout=15).json()
             if res_twse.get('stat') == 'OK' and 'data' in res_twse:
                 twse_count = len(res_twse['data'])
                 day_has_data = True
                 fields = res_twse['fields']
-                c_idx = fields.index('證券代號')
+                
+                c_idx = next((i for i, f in enumerate(fields) if '代號' in f), -1)
                 f_idx = next((i for i, f in enumerate(fields) if '外陸資買賣超股數' in f or '外資及陸資買賣超股數' in f), -1)
                 t_idx = next((i for i, f in enumerate(fields) if '投信買賣超股數' in f), -1)
 
-                if f_idx != -1 and t_idx != -1:
+                if c_idx != -1 and f_idx != -1 and t_idx != -1:
                     for row in res_twse['data']:
                         code = str(row[c_idx]).strip()
                         f_net = clean_num(row[f_idx]) // 1000 
@@ -91,14 +93,15 @@ def fetch_10_days_chips():
             print(f"  [上市錯誤] {dt_str}: {e}")
 
         # ==========================================
-        # 2. 抓取上櫃 (TPEx) - 破甲版
+        # 2. 抓取上櫃 (TPEx)
         # ==========================================
         if twse_count > 0: 
             try:
-                res_tpex_raw = scraper.get(tpex_url, timeout=15, verify=False)
+                # 💡 這裡已經把 verify=False 拿掉了
+                res_tpex_raw = scraper.get(tpex_url, timeout=15)
                 
                 if res_tpex_raw.status_code != 200 or 'html' in res_tpex_raw.text.lower()[:100]:
-                    print(f"  [上櫃阻擋] {dt_str}: 依然遭遇防火牆！伺服器回應：{res_tpex_raw.text[:80]}...")
+                    print(f"  [上櫃阻擋] {dt_str}: 伺服器回應異常，可能仍被防火牆阻擋。")
                 else:
                     res_tpex = res_tpex_raw.json()
                     
@@ -107,9 +110,6 @@ def fetch_10_days_chips():
                         for row in res_tpex['aaData']:
                             code = str(row[0]).strip()
                             try:
-                                if code == "3526":
-                                    print(f"  👉 找到凡甲(3526)！外資格: {row[8]} | 投信格: {row[11]}")
-
                                 if len(row) > 11:
                                     f_net = clean_num(row[8]) // 1000  
                                     t_net = clean_num(row[11]) // 1000 
@@ -119,8 +119,8 @@ def fetch_10_days_chips():
                                     chip_stats[code]['f_vol'] += f_net
                                     if t_net > 0: chip_stats[code]['t_days'] += 1
                                     chip_stats[code]['t_vol'] += t_net
-                            except Exception as e: 
-                                if code == "3526": print(f"  ❌ 凡甲解析失敗: {e}")
+                            except Exception: 
+                                pass
             except Exception as e:
                 print(f"  [上櫃連線失敗] {dt_str}: {e}")
 
@@ -129,7 +129,7 @@ def fetch_10_days_chips():
             print(f"✅ {dt_str} | 上市: {twse_count}筆 | 上櫃: {tpex_count}筆 (進度: {valid_days}/10)")
             
         current_date -= timedelta(days=1)
-        time.sleep(3) 
+        time.sleep(2) 
         
     return chip_stats
 
@@ -137,6 +137,7 @@ def update_gsheet_chips(chip_stats):
     print("\n📝 準備將籌碼戰情報告寫入 Google 表單...")
     client = get_gspread_client()
     spreadsheet = client.open_by_url(MASTER_GSHEET_URL)
+    
     target_sheets = [ws for ws in spreadsheet.worksheets() if any(n in ws.title for n in ["當年度表", "個股總表", "總表", "金融股"])]
     
     total_cells = 0
@@ -151,12 +152,15 @@ def update_gsheet_chips(chip_stats):
         i_f_days = next((i for i, x in enumerate(h) if "外資10日買天數" in str(x)), -1)
         i_f_vol = next((i for i, x in enumerate(h) if "外資10日買賣超" in str(x)), -1)
         
-        if i_code == -1 or i_t_days == -1: continue
+        if i_code == -1:
+            print(f"  ⚠️ 分頁 [{ws.title}] 找不到包含「代號」的欄位，跳過更新。")
+            continue
 
         cells = []
         for r_idx, row in enumerate(data[1:], start=2):
             if i_code < len(row):
                 code = str(row[i_code]).split('.')[0].strip()
+                
                 if code in chip_stats:
                     d = chip_stats[code]
                     if i_t_days != -1: cells.append(gspread.Cell(row=r_idx, col=i_t_days+1, value=d['t_days']))
@@ -173,4 +177,5 @@ def update_gsheet_chips(chip_stats):
 
 if __name__ == "__main__":
     stats = fetch_10_days_chips()
-    if stats: update_gsheet_chips(stats)
+    if stats: 
+        update_gsheet_chips(stats)
