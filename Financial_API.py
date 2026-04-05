@@ -1,8 +1,8 @@
 # ==========================================
-# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 中文籌碼顯影版)
+# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 籌碼徽章常駐版)
 # 💡 更新內容： 
-#    1. 籌碼欄位全數「中文正名」，修復英文裸奔問題。
-#    2. 將四大籌碼數據正式納入「關注清單總表」，方便一眼掃瞄排序！
+#    1. 籌碼徽章「不再隱藏」：>=7天顯示紅橘色連買，<=3天顯示綠色倒貨，中間顯示灰藍色觀望。
+#    2. 保留所有營收 M/Y% 顯示與財報防呆功能。
 # ==========================================
 
 import streamlit as st
@@ -223,7 +223,6 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
     est_annual_dividend = max(0, est_full_year_eps) * (calc_payout_ratio / 100)
     forward_yield = (est_annual_dividend / current_price) * 100 if current_price > 0 else 0.0
 
-    # 🌟 修正：全部正名為中文標題，不再顯示 t_buy_days
     return {
         "股票名稱": name, "最新股價": round(current_price, 2), 
         "_logic_note": formula_note, "_payout_note": "", 
@@ -630,7 +629,6 @@ def render_dataframe(df_source, is_finance=False, is_single=False):
             df["股票名稱"] = df["股票名稱"].astype(str).str.strip()
             df = df.drop_duplicates(subset=["股票名稱"], keep='first')
             
-        # 🔥 總表加入中文名稱的籌碼欄位
         if is_finance: 
             cols = ["股票名稱", "最新股價", "PBR(股價淨值比)", "前瞻殖利率(%)"]
             cols += ["近10年平均合計殖利率(%)", "前瞻PER", "原始PER", "預估今年Q1_EPS"]
@@ -763,7 +761,6 @@ if cached_data:
                                 color_m = "#ff4b4b" if safe_mom > 0 else ("#00aa00" if safe_mom < 0 else "inherit")
                                 color_y = "#ff4b4b" if safe_yoy > 0 else ("#00aa00" if safe_yoy < 0 else "inherit")
                                 
-                                # 🔥 正確讀取中文名稱的籌碼數據
                                 t_buy_days = get_safe_float(row.get('投信10日買天數', 0))
                                 t_net_vol = get_safe_float(row.get('投信10日買賣超', 0))
                                 f_buy_days = get_safe_float(row.get('外資10日買天數', 0))
@@ -771,16 +768,21 @@ if cached_data:
                                 
                                 st.markdown("#### 🏷️ 戰情核心指標")
                                 
+                                # 🔥 新增：永遠顯示籌碼徽章，利用顏色區分多空與觀望
                                 chip_badges = ""
                                 if t_buy_days >= 7 and t_net_vol > 0:
-                                    chip_badges += f"<span style='background-color:#ffe6e6; color:#d60000; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:5px;'>🔥 投信狂掃 ({int(t_buy_days)}/10) | 共 {int(t_net_vol):+,} 張</span>"
+                                    chip_badges += f"<span style='background-color:#ffe6e6; color:#d60000; padding:3px 8px; border-radius:4px; font-weight:bold; margin-right:5px;'>🔥 投信狂掃 ({int(t_buy_days)}/10) | {int(t_net_vol):+,} 張</span>"
                                 elif (10 - t_buy_days) >= 7 and t_net_vol < 0:
-                                    chip_badges += f"<span style='background-color:#e6ffe6; color:#008800; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:5px;'>⚠️ 投信倒貨 ({int(10-t_buy_days)}/10賣) | 共 {int(t_net_vol):+,} 張</span>"
+                                    chip_badges += f"<span style='background-color:#e6ffe6; color:#008800; padding:3px 8px; border-radius:4px; font-weight:bold; margin-right:5px;'>⚠️ 投信倒貨 ({int(10-t_buy_days)}/10賣) | {int(t_net_vol):+,} 張</span>"
+                                else:
+                                    chip_badges += f"<span style='background-color:#f0f2f6; color:#333333; padding:3px 8px; border-radius:4px; font-weight:bold; margin-right:5px;'>📊 投信觀望 ({int(t_buy_days)}/10) | {int(t_net_vol):+,} 張</span>"
 
                                 if f_buy_days >= 7 and f_net_vol > 0:
-                                    chip_badges += f"<span style='background-color:#fff5e6; color:#cc7700; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:5px;'>💰 外資連買 ({int(f_buy_days)}/10) | 共 {int(f_net_vol):+,} 張</span>"
+                                    chip_badges += f"<span style='background-color:#fff5e6; color:#cc7700; padding:3px 8px; border-radius:4px; font-weight:bold; margin-right:5px;'>💰 外資連買 ({int(f_buy_days)}/10) | {int(f_net_vol):+,} 張</span>"
                                 elif (10 - f_buy_days) >= 7 and f_net_vol < 0:
-                                    chip_badges += f"<span style='background-color:#e6ffe6; color:#008800; padding:2px 6px; border-radius:4px; font-weight:bold; margin-right:5px;'>⚠️ 外資倒貨 ({int(10-f_buy_days)}/10賣) | 共 {int(f_net_vol):+,} 張</span>"
+                                    chip_badges += f"<span style='background-color:#e6ffe6; color:#008800; padding:3px 8px; border-radius:4px; font-weight:bold; margin-right:5px;'>⚠️ 外資倒貨 ({int(10-f_buy_days)}/10賣) | {int(f_net_vol):+,} 張</span>"
+                                else:
+                                    chip_badges += f"<span style='background-color:#f0f2f6; color:#333333; padding:3px 8px; border-radius:4px; font-weight:bold; margin-right:5px;'>⚖️ 外資觀望 ({int(f_buy_days)}/10) | {int(f_net_vol):+,} 張</span>"
 
                                 if chip_badges: st.markdown(f"<div style='margin-bottom:12px;'>{chip_badges}</div>", unsafe_allow_html=True)
                                 
@@ -834,7 +836,8 @@ if cached_data:
                                     if m_revs_q2[1] > 0: d_viz.append({"季度": q, "類別": "B.今年", "項目": "5月營收", "營收(億)": m_revs_q2[1]})
                                     if m_revs_q2[2] > 0: d_viz.append({"季度": q, "類別": "B.今年", "項目": "6月營收", "營收(億)": m_revs_q2[2]})
                                     if sum(m_revs_q2) == 0: d_viz.append({"季度": q, "類別": "B.今年", "項目": "已公布", "營收(億)": 0}) 
-                                else: d_viz.append({"季度": q, "類別": "B.今年", "項目": "已公布", "營收(億)": clean_val_list(row.get("_known_qs", [0,0,0,0]), i)})
+                                else: 
+                                    d_viz.append({"季度": q, "類別": "B.今年", "項目": "已公布", "營收(億)": clean_val_list(row.get("_known_qs", [0,0,0,0]), i)})
                                 d_viz.append({"季度": q, "類別": "C.預估", "項目": "預估標竿", "營收(億)": clean_val_list(row.get("_total_est_qs", [0,0,0,0]), i)})
                                 
                             base_chart = alt.Chart(pd.DataFrame(d_viz)).encode(
@@ -883,6 +886,7 @@ if cached_data:
                 
             if st.button("📡 全市場掃描", type="primary"):
                 with st.spinner("極速掃描中..."):
+                    
                     ex_list = ["1316","1436","1438","1439","1442","1453","1456","1472","1805","1808","2442","2501","2504","2505","2506","2509","2511","2515","2516","2520","2524","2527","2528","2530","2534","2535","2536","2537","2538","2539","2540","2542","2543","2545","2546","2547","2548","2596","2597","2718","2923","3052","3056","3188","3266","3489","3512","3521","3703","4113","4416","4907","5206","5213","5324","5455","5508","5511","5512","5514","5515","5516","5519","5520","5521","5522","5523","5525","5529","5531","5533","5534","5543","5546","5547","5548","6171","6177","6186","6198","6212","6219","6264","8080","8424","9906","9946","2880","2881","2882","2883","2884","2885","2886","2887","2889","2890","2891","2892","5880","2816","2832","2850","2851","2852","2867","5878","2801","2812","2820","2834","2836","2838","2845","2849","2897","5876","6016","6020","2855","6015","6005","6026","6024","6023","6021","5864"]
                     exclude_codes = set(ex_list)
                     kws = [k.strip() for k in re.split(r'[;,\s\t]+', ex_kws) if k.strip()]
