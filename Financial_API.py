@@ -1,9 +1,10 @@
 # ==========================================
-# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 絕對防斷行版)
+# 📂 檔案名稱： Financial_API.py (迎接3月營收升級版 - 最終完美防護版)
 # 💡 更新內容： 
-#    1. 籌碼徽章移至「營收 M/Y%」正下方，並強制同一行顯示不換行。
-#    2. 移除所有置頂的多餘徽章，讓基本面數據清晰可見。
-#    3. 徹底解決 GitHub 編輯器截斷字串導致的 SyntaxError。
+#    1. 籌碼徽章移至「營收 M/Y%」正下方單行顯示，絕不換行。
+#    2. 移除所有多餘置頂徽章，版面乾淨俐落。
+#    3. 完整保留原有的直條圖與下方個股資料表。
+#    4. 終極防斷行寫法，徹底封殺 GitHub 編輯器的 SyntaxError。
 # ==========================================
 
 import streamlit as st
@@ -669,12 +670,8 @@ if cached_data:
                     
                     st.markdown("---")
                     
-                    # 🌟 防斷行保護機制：將長字串拆解，避免 GitHub 編輯器出錯
-                    str_part1 = f"📈 業外佔比: {row['最新業外佔比(%)']:.2f}%"
-                    str_part2 = f"📉 合約負債: {row['最新季度流動合約負債(億)']:.2f}億 ({row['最新季度流動合約負債季增(%)']:.2f}%)"
-                    st.markdown(str_part1 + " ｜ " + str_part2)
+                    st.markdown(f"📈 業外佔比: {row['最新業外佔比(%)']:.2f}% &nbsp;｜&nbsp; 📉 合約負債: {row['最新季度流動合約負債(億)']:.2f}億 ({row['最新季度流動合約負債季增(%)']:.2f}%)")
                     
-                    # 🌟 營收與籌碼單行顯示區塊
                     mom_color = "green" if row['最新單月營收M%'] > 0 else "red"
                     yoy_color = "green" if row['最新單月營收Y%'] > 0 else "red"
                     
@@ -696,17 +693,19 @@ if cached_data:
                     else:
                         f_class, f_text = "f-neutral", "⚪ 外資無動靜"
 
-                    st.markdown(f"""
-                        <div style="margin-bottom: 15px;">
-                            📊 最新單月營收 M/Y: 
-                            <strong style="color:{mom_color}">{row['最新單月營收M%']:.2f}%</strong> / 
-                            <strong style="color:{yoy_color}">{row['最新單月營收Y%']:.2f}%</strong>
-                            <div class="chip-badge-container">
-                                <span class="chip-badge {t_class}">{t_text}</span>
-                                <span class="chip-badge {f_class}">{f_text}</span>
-                            </div>
-                        </div>
-                    """, unsafe_allow_html=True)
+                    # 🌟 終極防護 HTML 字串串接寫法，保證 GitHub 編輯器不報錯
+                    html_str = (
+                        '<div style="margin-bottom: 15px;">'
+                        '📊 最新單月營收 M/Y: '
+                        f'<strong style="color:{mom_color}">{row["最新單月營收M%"]:.2f}%</strong> / '
+                        f'<strong style="color:{yoy_color}">{row["最新單月營收Y%"]:.2f}%</strong>'
+                        '<div class="chip-badge-container">'
+                        f'<span class="chip-badge {t_class}">{t_text}</span>'
+                        f'<span class="chip-badge {f_class}">{f_text}</span>'
+                        '</div>'
+                        '</div>'
+                    )
+                    st.markdown(html_str, unsafe_allow_html=True)
                     
                     with st.expander("📝 點此查看預估邏輯"):
                         st.info(f"**EPS 演算法:** {row['_logic_note']}\n\n**配息演算法:** {row['配息基準']} ({row['運算配息率(%)']}%)")
