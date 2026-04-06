@@ -841,4 +841,7 @@ if cached_data:
             with st.spinner("掃描中..."):
                 res_list = []
                 for c, d in db_fin.items():
-                    if d.get("pbr
+                    if d.get("pbr",0) > 0: 
+                        res_list.append(financial_strategic_model(d["name"], c.strip(), simulated_month, d, simulated_month, d.get("actual_q1_eps",0), d.get("latest_mom", 0), d.get("latest_yoy", 0), d.get("t_days", 0), d.get("t_net_vol", 0), d.get("f_days", 0), d.get("f_net_vol", 0)))
+                if not res_list: st.warning("無符合條件的金融股")
+                else: render_dataframe(pd.DataFrame(res_list).sort_values(by=['PBR(股價淨值比)', '前瞻殖利率(%)'], ascending=[True, False]), is_finance=True)
