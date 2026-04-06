@@ -1,6 +1,6 @@
 # ==========================================
-# 📂 檔案名稱： update_chips.py (雲端/本地 雙棲智慧版)
-# 💡 任務：自動適應 TPEx 官方新版 API，並完美支援 GitHub 雲端全自動排程
+# 📂 檔案名稱： update_chips.py (雲端/本地 雙棲智慧 + 買賣天數精準分離版)
+# 💡 任務：自動適應 TPEx 官方新版 API，並精準區分「買超天數」與「賣超天數」
 # ==========================================
 
 import os
@@ -80,7 +80,6 @@ def fetch_10_days_chips():
         d_pad = current_date.strftime('%d')
         
         twse_url = f"https://www.twse.com.tw/rwd/zh/fund/T86?date={dt_str}&selectType=ALL&response=json"
-        # 移除干擾參數，回歸最單純的網址
         tpex_url = f"https://www.tpex.org.tw/web/stock/3insti/daily_trade/3itrade_hedge_result.php?l=zh-tw&o=json&d={roc_y}/{m_pad}/{d_pad}"
         
         day_has_data = False
@@ -107,10 +106,15 @@ def fetch_10_days_chips():
                         f_net = clean_num(row[f_idx]) // 1000 
                         t_net = clean_num(row[t_idx]) // 1000
 
-                        if code not in chip_stats: chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
-                        if f_net > 0: chip_stats[code]['f_days'] += 1
+                        if code not in chip_stats: chip_stats[code] = {'f_buy_days': 0, 'f_sell_days': 0, 'f_vol': 0, 't_buy_days': 0, 't_sell_days': 0, 't_vol': 0}
+                        
+                        # 🔥 買賣天數精準分離計算
+                        if f_net > 0: chip_stats[code]['f_buy_days'] += 1
+                        elif f_net < 0: chip_stats[code]['f_sell_days'] += 1
                         chip_stats[code]['f_vol'] += f_net
-                        if t_net > 0: chip_stats[code]['t_days'] += 1
+                        
+                        if t_net > 0: chip_stats[code]['t_buy_days'] += 1
+                        elif t_net < 0: chip_stats[code]['t_sell_days'] += 1
                         chip_stats[code]['t_vol'] += t_net
         except Exception:
             pass
@@ -127,7 +131,6 @@ def fetch_10_days_chips():
                         res_tpex = res_tpex_raw.json()
                         tpex_data_list = []
                         
-                        # 破解新版包裝：自動尋找 tables 或 aaData
                         if 'tables' in res_tpex and len(res_tpex['tables']) > 0 and 'data' in res_tpex['tables'][0]:
                             tpex_data_list = res_tpex['tables'][0]['data']
                         elif 'aaData' in res_tpex:
@@ -144,10 +147,15 @@ def fetch_10_days_chips():
                                         f_net = clean_num(row[10]) // 1000  
                                         t_net = clean_num(row[13]) // 1000 
                                         
-                                        if code not in chip_stats: chip_stats[code] = {'f_days': 0, 'f_vol': 0, 't_days': 0, 't_vol': 0}
-                                        if f_net > 0: chip_stats[code]['f_days'] += 1
+                                        if code not in chip_stats: chip_stats[code] = {'f_buy_days': 0, 'f_sell_days': 0, 'f_vol': 0, 't_buy_days': 0, 't_sell_days': 0, 't_vol': 0}
+                                        
+                                        # 🔥 買賣天數精準分離計算
+                                        if f_net > 0: chip_stats[code]['f_buy_days'] += 1
+                                        elif f_net < 0: chip_stats[code]['f_sell_days'] += 1
                                         chip_stats[code]['f_vol'] += f_net
-                                        if t_net > 0: chip_stats[code]['t_days'] += 1
+                                        
+                                        if t_net > 0: chip_stats[code]['t_buy_days'] += 1
+                                        elif t_net < 0: chip_stats[code]['t_sell_days'] += 1
                                         chip_stats[code]['t_vol'] += t_net
                                 except Exception: 
                                     pass
@@ -179,9 +187,10 @@ def update_gsheet_chips(chip_stats):
         h = data[0]
         
         i_code = next((i for i, x in enumerate(h) if "代號" in str(x)), -1)
-        i_t_days = next((i for i, x in enumerate(h) if "投信10日買天數" in str(x)), -1)
+        # 支援 "投信10日買天數" 或是未來您可能改名的 "投信10日天數"
+        i_t_days = next((i for i, x in enumerate(h) if "投信10日買天數" in str(x) or "投信10日天數" in str(x)), -1)
         i_t_vol = next((i for i, x in enumerate(h) if "投信10日買賣超" in str(x)), -1)
-        i_f_days = next((i for i, x in enumerate(h) if "外資10日買天數" in str(x)), -1)
+        i_f_days = next((i for i, x in enumerate(h) if "外資10日買天數" in str(x) or "外資10日天數" in str(x)), -1)
         i_f_vol = next((i for i, x in enumerate(h) if "外資10日買賣超" in str(x)), -1)
         
         if i_code == -1:
@@ -194,9 +203,17 @@ def update_gsheet_chips(chip_stats):
                 
                 if code in chip_stats:
                     d = chip_stats[code]
-                    if i_t_days != -1: cells.append(gspread.Cell(row=r_idx, col=i_t_days+1, value=d['t_days']))
+                    
+                    # 🔥 智慧填寫邏輯：
+                    # 如果總結算 > 0 (買超)，就填寫「買的天數」
+                    # 如果總結算 < 0 (賣超)，就填寫「賣的天數」
+                    # 如果是 0，填 0
+                    t_days_val = d['t_buy_days'] if d['t_vol'] > 0 else (d['t_sell_days'] if d['t_vol'] < 0 else 0)
+                    f_days_val = d['f_buy_days'] if d['f_vol'] > 0 else (d['f_sell_days'] if d['f_vol'] < 0 else 0)
+
+                    if i_t_days != -1: cells.append(gspread.Cell(row=r_idx, col=i_t_days+1, value=t_days_val))
                     if i_t_vol != -1: cells.append(gspread.Cell(row=r_idx, col=i_t_vol+1, value=d['t_vol']))
-                    if i_f_days != -1: cells.append(gspread.Cell(row=r_idx, col=i_f_days+1, value=d['f_days']))
+                    if i_f_days != -1: cells.append(gspread.Cell(row=r_idx, col=i_f_days+1, value=f_days_val))
                     if i_f_vol != -1: cells.append(gspread.Cell(row=r_idx, col=i_f_vol+1, value=d['f_vol']))
                     
         if cells:
