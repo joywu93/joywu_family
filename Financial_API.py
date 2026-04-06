@@ -1,8 +1,9 @@
 # ==========================================
-# 📂 檔案名稱： Financial_API.py (專業術語校準版)
+# 📂 檔案名稱： Financial_API.py (單行濃縮 + 專業術語終極版)
 # 💡 更新內容： 
-#    1. 籌碼徽章用語專業化：全面改為中性的「買超/賣超」，去除情緒字眼。
-#    2. 以「+ / -」總張數直接作為判定標準，直覺顯示紅綠動能。
+#    1. 移除舊版錯誤的 (10 - X) 邏輯，完全精準呈現真實買賣天數！
+#    2. 採用「買超/賣超」專業用語，搭配紅綠色彩直覺顯示。
+#    3. 完美濃縮至營收 M/Y% 下方，強制單行不換行。
 # ==========================================
 
 import streamlit as st
@@ -83,7 +84,7 @@ def get_realtime_price(code, default_price):
 
 st.title("📊 2026 戰略指揮 (籌碼校準版)")
 
-def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last_12, rev_this_1, rev_this_2, rev_this_3, rev_this_4, rev_this_5, rev_this_6, base_q_eps, non_op_ratio, base_q_total_rev, ly_q1_rev, ly_q2_rev, ly_q3_rev, ly_q4_rev, y1_q1_rev, y1_q2_rev, y1_q3_rev, y1_q4_rev, recent_payout_ratio, current_price, contract_liab, contract_liab_qoq, acc_eps, declared_div, actual_q1_eps, latest_mom, latest_yoy, t_buy_days, t_net_vol, f_buy_days, f_net_vol):
+def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last_12, rev_this_1, rev_this_2, rev_this_3, rev_this_4, rev_this_5, rev_this_6, base_q_eps, non_op_ratio, base_q_total_rev, ly_q1_rev, ly_q2_rev, ly_q3_rev, ly_q4_rev, y1_q1_rev, y1_q2_rev, y1_q3_rev, y1_q4_rev, recent_payout_ratio, current_price, contract_liab, contract_liab_qoq, acc_eps, declared_div, actual_q1_eps, latest_mom, latest_yoy, t_days, t_net_vol, f_days, f_net_vol):
     try:
         current_price = float(current_price)
         if math.isnan(current_price) or math.isinf(current_price): current_price = 0.0
@@ -189,8 +190,8 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
         "預估年成長率(%)": round(est_annual_yoy, 2), "運算配息率(%)": calc_payout_ratio, "配息基準": payout_note,
         "最新業外佔比(%)": round(non_op_ratio, 2), "最新季度流動合約負債(億)": contract_liab, "最新季度流動合約負債季增(%)": contract_liab_qoq,
         "最新單月營收M%": latest_mom, "最新單月營收Y%": latest_yoy,
-        "投信10日買天數": t_buy_days, "投信10日買賣超": t_net_vol, 
-        "外資10日買天數": f_buy_days, "外資10日買賣超": f_net_vol,
+        "投信10日天數": t_days, "投信10日買賣超": t_net_vol, 
+        "外資10日天數": f_days, "外資10日買賣超": f_net_vol,
         "_ly_qs": [round(ly_q1_rev, 2), round(ly_q2_rev, 2), round(ly_q3_rev, 2), round(ly_q4_rev, 2)], 
         "_known_qs": [round(actual_known_q1, 2), round(actual_known_q2, 2), 0, 0],
         "_known_q1_months": [round(max(0, sim_rev_1), 2), round(max(0, sim_rev_2), 2), round(max(0, sim_rev_3), 2)],
@@ -198,7 +199,7 @@ def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last
         "_total_est_qs": [round(benchmark_q1_rev, 2), round(benchmark_q2_rev, 2), round(benchmark_q3_rev, 2), round(benchmark_q4_rev, 2)]
     }
 
-def financial_strategic_model(name, code, current_month, data, simulated_month, actual_q1_eps, latest_mom, latest_yoy, t_buy_days, t_net_vol, f_buy_days, f_net_vol):
+def financial_strategic_model(name, code, current_month, data, simulated_month, actual_q1_eps, latest_mom, latest_yoy, t_days, t_net_vol, f_days, f_net_vol):
     rev_this_1, rev_this_2, rev_this_3 = data.get("rev_this_1",0), data.get("rev_this_2",0), data.get("rev_this_3",0)
     if simulated_month <= 1: sim_rev_1, sim_rev_2, sim_rev_3 = 0, 0, 0
     elif simulated_month == 2: sim_rev_1, sim_rev_2, sim_rev_3 = rev_this_1, 0, 0
@@ -264,7 +265,7 @@ def financial_strategic_model(name, code, current_month, data, simulated_month, 
         "預估今年Q1_EPS": round(est_q1_eps_forecast, 2), "實際Q1_EPS": actual_q1_eps, "預估今年度_EPS": round(est_fy_eps, 2), 
         "運算配息率(%)": payout_ratio, "配息基準": payout_note, "當季預估均營收(億)": round(dynamic_base_avg, 2),
         "最新單月營收M%": latest_mom, "最新單月營收Y%": latest_yoy,
-        "投信10日買天數": t_buy_days, "投信10日買賣超": t_net_vol, "外資10日買天數": f_buy_days, "外資10日買賣超": f_net_vol
+        "投信10日天數": t_days, "投信10日買賣超": t_net_vol, "外資10日天數": f_days, "外資10日買賣超": f_net_vol
     }
 
 def deduplicate_cols(cols):
@@ -349,7 +350,9 @@ def fetch_gsheet_data_v182():
                     "payout": v(get_col("盈餘總分配率") or get_col("分配率")), "price": v(get_col("成交", ex=["量", "值", "比"]) or get_col("股價", ex=["比", "淨值"])), 
                     "acc_eps": v(get_col("最新累季每股盈餘") or get_col("累季", "盈餘")), "contract_liab": v(get_col("合約負債", ex=["季增"])), "contract_liab_qoq": v(get_col("合約負債季增") or get_col("季增", "負債")), "declared_div": v(get_col("合計股利")),
                     "latest_mom": v(get_col("M%") or get_col("月增", ex=["累計"])), "latest_yoy": v(get_col("Y%") or get_col("年增", ex=["累計"])),
-                    "t_buy_days": v(get_col("投信10日買天數")), "t_net_vol": v(get_col("投信10日買賣超")), "f_buy_days": v(get_col("外資10日買天數")), "f_net_vol": v(get_col("外資10日買賣超"))
+                    # 抓取真實天數 (相容表單名稱)
+                    "t_days": v(get_col("投信10日天數") or get_col("投信10日買天數")), "t_net_vol": v(get_col("投信10日買賣超")), 
+                    "f_days": v(get_col("外資10日天數") or get_col("外資10日買天數")), "f_net_vol": v(get_col("外資10日買賣超"))
                 }
                 if code not in db: db[code] = new_entry
                 else:
@@ -528,13 +531,13 @@ def render_dataframe(df_source, is_finance=False, is_single=False):
             cols += ["近10年平均合計殖利率(%)", "前瞻PER", "原始PER", "預估今年Q1_EPS"]
             cols += ["實際Q1_EPS", "預估今年度_EPS", "運算配息率(%)", "配息基準"]
             cols += ["當季預估均營收(億)", "最新單月營收M%", "最新單月營收Y%"]
-            cols += ["投信10日買天數", "投信10日買賣超", "外資10日買天數", "外資10日買賣超"]
+            cols += ["投信10日天數", "投信10日買賣超", "外資10日天數", "外資10日買賣超"]
         else: 
             cols = ["股票名稱", "最新股價", "當季預估均營收", "最新單月營收M%"]
             cols += ["最新單月營收Y%", "季成長率(YoY)%", "前瞻殖利率(%)"]
             cols += ["預估今年Q1_EPS", "實際Q1_EPS", "預估今年度_EPS", "最新累季EPS"]
             cols += ["本益比(PER)", "預估年成長率(%)", "運算配息率(%)"]
-            cols += ["最新業外佔比(%)", "投信10日買天數", "投信10日買賣超", "外資10日買天數", "外資10日買賣超"]
+            cols += ["最新業外佔比(%)", "投信10日天數", "投信10日買賣超", "外資10日天數", "外資10日買賣超"]
             cols += ["配息基準", "最新季度流動合約負債(億)", "最新季度流動合約負債季增(%)"]
             
         df = df[[c for c in cols if c in df.columns]]
@@ -605,8 +608,8 @@ if cached_data:
                             d.get("payout",0), pr, d.get("contract_liab",0), d.get("contract_liab_qoq",0), 
                             d.get("acc_eps",0), d.get("declared_div",0), d.get("actual_q1_eps",0),
                             d.get("latest_mom", 0), d.get("latest_yoy", 0),
-                            d.get("t_buy_days", 0), d.get("t_net_vol", 0),
-                            d.get("f_buy_days", 0), d.get("f_net_vol", 0)
+                            d.get("t_days", 0), d.get("t_net_vol", 0),
+                            d.get("f_days", 0), d.get("f_net_vol", 0)
                         )
                         res_list.append(r)
                 bar.empty()
@@ -655,9 +658,10 @@ if cached_data:
                                 color_m = "#ff4b4b" if safe_mom > 0 else ("#00aa00" if safe_mom < 0 else "inherit")
                                 color_y = "#ff4b4b" if safe_yoy > 0 else ("#00aa00" if safe_yoy < 0 else "inherit")
                                 
-                                t_buy_days = get_safe_float(row.get('投信10日買天數', 0))
+                                # 🔥 從表單讀取已經由後台精算好的真實天數與張數
+                                t_days = get_safe_float(row.get('投信10日天數', row.get('投信10日買天數', 0)))
                                 t_net_vol = get_safe_float(row.get('投信10日買賣超', 0))
-                                f_buy_days = get_safe_float(row.get('外資10日買天數', 0))
+                                f_days = get_safe_float(row.get('外資10日天數', row.get('外資10日買天數', 0)))
                                 f_net_vol = get_safe_float(row.get('外資10日買賣超', 0))
                                 
                                 st.markdown("#### 🏷️ 戰情核心指標")
@@ -678,28 +682,28 @@ if cached_data:
                                     st.metric("本益比 (PER)", f"{safe_per:.2f}")
                                     st.metric("預估年成長率", f"{safe_grow:.2f} %")
                                 
-                                # 🔥 專業校準：依據總張數正負，直接判定買超/賣超/無買賣
+                                # 🔥 終極校準：不再計算 (10 - X)，直接用真實天數，並套用專業術語
                                 if t_net_vol > 0:
-                                    chip_t = f"🔥投信買超({int(t_buy_days)}/10)|+{int(t_net_vol):,}張"
+                                    chip_t = f"🔥投信買超({int(t_days)}/10)|+{int(t_net_vol):,}張"
                                     bg_t, co_t = "#ffe6e6", "#d60000"
                                 elif t_net_vol < 0:
-                                    chip_t = f"⚠️投信賣超({int(10-t_buy_days)}/10)|{int(t_net_vol):,}張"
+                                    chip_t = f"⚠️投信賣超({int(t_days)}/10)|{int(t_net_vol):,}張"
                                     bg_t, co_t = "#e6ffe6", "#008800"
                                 else:
                                     chip_t = f"📊投信無買賣(0/10)|0張"
                                     bg_t, co_t = "#f0f2f6", "#333333"
 
                                 if f_net_vol > 0:
-                                    chip_f = f"💰外資買超({int(f_buy_days)}/10)|+{int(f_net_vol):,}張"
+                                    chip_f = f"💰外資買超({int(f_days)}/10)|+{int(f_net_vol):,}張"
                                     bg_f, co_f = "#fff5e6", "#cc7700"
                                 elif f_net_vol < 0:
-                                    chip_f = f"⚠️外資賣超({int(10-f_buy_days)}/10)|{int(f_net_vol):,}張"
+                                    chip_f = f"⚠️外資賣超({int(f_days)}/10)|{int(f_net_vol):,}張"
                                     bg_f, co_f = "#e6ffe6", "#008800"
                                 else:
                                     chip_f = f"⚖️外資無買賣(0/10)|0張"
                                     bg_f, co_f = "#f0f2f6", "#333333"
                                 
-                                # 強制不換行與美觀間距
+                                # 加入 white-space: nowrap; 強制不換行
                                 span_t = f"<span style='background-color:{bg_t}; color:{co_t}; padding:2px 6px; border-radius:4px; font-weight:bold; white-space:nowrap; font-size:0.95em;'>{chip_t}</span>"
                                 span_f = f"<span style='background-color:{bg_f}; color:{co_f}; padding:2px 6px; border-radius:4px; font-weight:bold; white-space:nowrap; font-size:0.95em;'>{chip_f}</span>"
 
@@ -743,86 +747,3 @@ if cached_data:
                                 
                             base_chart = alt.Chart(pd.DataFrame(d_viz)).encode(
                                 x=alt.X('類別:N', axis=None), y=alt.Y('營收(億):Q', title=None),
-                                column=alt.Column('季度:N', header=alt.Header(title=None, labelOrient='bottom'))
-                            )
-
-                            bars = base_chart.mark_bar().encode(
-                                color=alt.Color('項目:N', legend=alt.Legend(title=None, orient="bottom", columns=5), 
-                                                scale=alt.Scale(
-                                                    domain=["去年實際", "1月營收", "2月營收", "3月營收", "4月營收", "5月營收", "6月營收", "已公布", "預估標竿"], 
-                                                    range=["#004c6d", "#cce6ff", "#66b2ff", "#0073e6", "#cce6ff", "#66b2ff", "#0073e6", "#3399ff", "#ff4b4b"]
-                                                )),
-                                order=alt.Order('項目:N', sort='ascending'),
-                                tooltip=[alt.Tooltip('項目:N', title='類別'), alt.Tooltip('營收(億):Q', title='營收(億)', format='.2f')]
-                            )
-                            
-                            selector = alt.selection_single(on='mouseover', nearest=True, empty='none', fields=['類別', '季度'])
-                            interactive_bars = bars.add_selection(selector)
-                            chart_final = interactive_bars.properties(width=55, height=220)
-                            st.altair_chart(chart_final, use_container_width=False) 
-                        except: pass
-
-                st.divider()
-                if sel and not row_df.empty:
-                    st.markdown(f"### 🎯 【{sel}】專屬戰情報表")
-                    render_dataframe(row_df, is_single=True)
-                    st.divider()
-                st.markdown("### 📋 關注清單總表")
-                render_dataframe(df.sort_values(by=['季成長率(YoY)%', '前瞻殖利率(%)'], ascending=[False, False]))
-
-    if t_radar:
-        with t_radar:
-            st.markdown("##### 🚀 成長動能條件")
-            s1 = st.checkbox("☑️ 策略一：年底升溫 (去年11-12月均 > 去年Q1均)")
-            s2 = st.checkbox("☑️ 策略二：淡季突破 (動態Q1 > 去年Q2實際) 💡抗春節: (1+2月)x1.5")
-            s3 = st.checkbox("☑️ 策略三：Q2大爆發 (動態Q2 > 動態Q1 且 動態Q2 > 去年Q2)")
-            
-            c_r1, c_r2 = st.columns(2)
-            with c_r1: 
-                f_grow = st.slider("穩健成長 (年增率 > %)", -10, 100, 10)
-                f_per = st.slider("便宜價 (本益比 <)", 5, 50, 50)
-            with c_r2: 
-                f_y = st.slider("高殖利率 (大於 %)", 0.0, 15.0, 4.0)
-                ex_kws = st.text_input("🚫 排除關鍵字")
-                
-            if st.button("📡 全市場掃描", type="primary"):
-                with st.spinner("極速掃描中..."):
-                    ex_list = ["1316","1436","1438","1439","1442","1453","1456","1472","1805","1808","2442","2501","2504","2505","2506","2509","2511","2515","2516","2520","2524","2527","2528","2530","2534","2535","2536","2537","2538","2539","2540","2542","2543","2545","2546","2547","2548","2596","2597","2718","2923","3052","3056","3188","3266","3489","3512","3521","3703","4113","4416","4907","5206","5213","5324","5455","5508","5511","5512","5514","5515","5516","5519","5520","5521","5522","5523","5525","5529","5531","5533","5534","5543","5546","5547","5548","6171","6177","6186","6198","6212","6219","6264","8080","8424","9906","9946","2880","2881","2882","2883","2884","2885","2886","2887","2889","2890","2891","2892","5880","2816","2832","2850","2851","2852","2867","5878","2801","2812","2820","2834","2836","2838","2845","2849","2897","5876","6016","6020","2855","6015","6005","6026","6024","6023","6021","5864"]
-                    exclude_codes = set(ex_list)
-                    kws = [k.strip() for k in re.split(r'[;,\s\t]+', ex_kws) if k.strip()]
-                    res_list = []
-                    for code, d in db_gen.items():
-                        if code in exclude_codes or (kws and any((k in d["name"] or code.startswith(k)) for k in kws)): continue
-                        pr = float(d.get("price", 0)) if d.get("price") else 0.0
-                        r = auto_strategic_model(
-                            f"{code} {d['name']}", simulated_month, 
-                            d.get("rev_last_10",0), d.get("rev_last_11",0), d.get("rev_last_12",0), 
-                            d.get("rev_this_1",0), d.get("rev_this_2",0), d.get("rev_this_3",0), 
-                            d.get("rev_this_4",0), d.get("rev_this_5",0), d.get("rev_this_6",0), 
-                            d["base_q_eps"], d.get("non_op_ratio",0), d.get("base_q_total_rev",0), 
-                            d["ly_q1_rev"], d["ly_q2_rev"], d["ly_q3_rev"], d["ly_q4_rev"], 
-                            d["y1_q1_rev"], d["y1_q2_rev"], d["y1_q3_rev"], d["y1_q4_rev"], 
-                            d.get("payout",0), pr, d.get("contract_liab",0), d.get("contract_liab_qoq",0), 
-                            d.get("acc_eps",0), d.get("declared_div",0), d.get("actual_q1_eps",0),
-                            d.get("latest_mom", 0), d.get("latest_yoy", 0),
-                            d.get("t_buy_days", 0), d.get("t_net_vol", 0), d.get("f_buy_days", 0), d.get("f_net_vol", 0)
-                        )
-                        
-                        ly_q1_avg, ly_q2 = r["_ly_qs"][0]/3, r["_ly_qs"][1]; ly_11_12_avg = r["_total_est_qs"][0]/3; est_q1 = r["當季預估均營收"] * 3; est_q2_avg = r["_total_est_qs"][1]/3; best_q1_avg = (r["_known_qs"][0] if simulated_month >= 4 else est_q1)/3
-                        if (s1 and not (ly_11_12_avg > ly_q1_avg)) or (s2 and not (est_q1 > ly_q2)) or (s3 and not (est_q2_avg >= best_q1_avg and est_q2_avg*3 > ly_q2)) or r["預估年成長率(%)"] < f_grow or (f_y > 0 and r["前瞻殖利率(%)"] < f_y) or (f_per < 50 and (r["本益比(PER)"] <= 0 or r["本益比(PER)"] > f_per)): continue
-                        res_list.append(r)
-                        
-                    if not res_list: st.warning("無符合條件股票")
-                    else: 
-                        st.success(f"命中 {len(res_list)} 檔！")
-                        render_dataframe(pd.DataFrame(res_list).sort_values(by=['前瞻殖利率(%)', '季成長率(YoY)%'], ascending=[False, False]))
-
-    with t_fin:
-        if st.button("🛡️ 啟推金融掃描", type="primary"):
-            with st.spinner("掃描中..."):
-                res_list = []
-                for c, d in db_fin.items():
-                    if d.get("pbr",0) > 0: 
-                        res_list.append(financial_strategic_model(d["name"], c.strip(), simulated_month, d, simulated_month, d.get("actual_q1_eps",0), d.get("latest_mom", 0), d.get("latest_yoy", 0), d.get("t_buy_days", 0), d.get("t_net_vol", 0), d.get("f_buy_days", 0), d.get("f_net_vol", 0)))
-                if not res_list: st.warning("無符合條件的金融股")
-                else: render_dataframe(pd.DataFrame(res_list).sort_values(by=['PBR(股價淨值比)', '前瞻殖利率(%)'], ascending=[True, False]), is_finance=True)
