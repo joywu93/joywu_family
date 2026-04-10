@@ -353,7 +353,7 @@ def fetch_gsheet_data_v182():
                     "pbr": v(get_col("PBR") or get_col("淨值比")), "div_years": v(get_col("連配次數") or get_col("連續配發")), "orig_per": v(get_col("PER", ex=["前瞻", "預估"])), 
                     "annual_yield": v(get_col("近10年平均合計殖利率") or get_col("年化合計殖利率") or get_col("年化", "殖利率")),
                     "payout": v(get_col("盈餘總分配率") or get_col("分配率")), "price": v(get_col("成交", ex=["量", "值", "比"]) or get_col("股價", ex=["比", "淨值"])), 
-                    "acc_eps": v(get_col("最新累季每股盈餘") or get_col("累季", "盈餘")), "contract_liab": v(get_col("合合約負債", ex=["季增"])), "contract_liab_qoq": v(get_col("合約負債季增") or get_col("季增", "負債")), "declared_div": v(get_col("合計股利")),
+                    "acc_eps": v(get_col("最新累季每股盈餘") or get_col("累季", "盈餘")), "contract_liab": v(get_col("合約負債", ex=["季增"])), "contract_liab_qoq": v(get_col("合約負債季增") or get_col("季增", "負債")), "declared_div": v(get_col("合計股利")),
                     "latest_mom": v(get_col("M%") or get_col("月增", ex=["累計"])), "latest_yoy": v(get_col("Y%") or get_col("年增", ex=["累計"])),
                     "t_days": v(get_col("投信10日天數") or get_col("投信10日買天數")), "t_net_vol": v(get_col("投信10日買賣超")), 
                     "f_days": v(get_col("外資10日天數") or get_col("外資10日買天數")), "f_net_vol": v(get_col("外資10日買賣超"))
