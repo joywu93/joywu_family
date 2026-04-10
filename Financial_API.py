@@ -1,8 +1,8 @@
 # ==========================================
-# 📂 檔案名稱： Financial_API.py (隱藏季增清爽版)
+# 📂 檔案名稱： Financial_API.py (EPS欄位防呆校準版)
 # 💡 更新內容： 
-#    1. 徹底移除「合約負債季增(%)」的讀取、運算與顯示，讓介面更簡潔。
-#    2. 保留合約負債的絕對金額（億），維持基本面參考價值。
+#    1. 全面為「盈餘」欄位加上排除字眼 ["增", "率", "%"]，避免抓到負的成長率。
+#    2. 保留策略四 (3月營收動能)、單行籌碼、無合約負債季增等所有最新功能。
 # ==========================================
 
 import streamlit as st
@@ -85,7 +85,6 @@ def get_realtime_price(code, default_price):
 
 st.title("📊 2026 戰略指揮 (籌碼校準版)")
 
-# 🔥 拔除合約負債季增參數
 def auto_strategic_model(name, current_month, rev_last_10, rev_last_11, rev_last_12, rev_this_1, rev_this_2, rev_this_3, rev_this_4, rev_this_5, rev_this_6, base_q_eps, non_op_ratio, base_q_total_rev, ly_q1_rev, ly_q2_rev, ly_q3_rev, ly_q4_rev, y1_q1_rev, y1_q2_rev, y1_q3_rev, y1_q4_rev, recent_payout_ratio, current_price, contract_liab, acc_eps, declared_div, actual_q1_eps, latest_mom, latest_yoy, t_days, t_net_vol, f_days, f_net_vol):
     try:
         current_price = float(current_price)
@@ -259,7 +258,7 @@ def financial_strategic_model(name, code, current_month, data, simulated_month, 
         raw_payout = data.get("payout", 0)
         if raw_payout > 100: payout_ratio = 80.0; payout_note = "⚠️ 歷史配息(防守填80%)"
         elif raw_payout <= 0: payout_ratio = 50.0; payout_note = "🛡️ 無資料(防守填50%)"
-        else: payout_ratio = raw_payout; payout_note = "🕒 表單歷史配息率"
+        else: payout_ratio = raw_payout; payout_note = "🕒 表 表單歷史配息率"
             
     est_dividend = max(0, est_fy_eps) * (payout_ratio / 100)
     forward_yield = (est_dividend / current_price) * 100 if current_price > 0 else 0.0
@@ -329,8 +328,11 @@ def fetch_gsheet_data_v182():
                     except: return d
                  
                 rev_q4 = v(get_col(f"{ly}Q4", "營收", ex=["增", "率", "%"])) or (v(get_col(f"{last_y}M10", "營收", ex=["增", "率", "%"])) + v(get_col(f"{last_y}M11", "營收", ex=["增", "率", "%"])) + v(get_col(f"{last_y}M12", "營收", ex=["增", "率", "%"])))
-                eps_q3, eps_q4 = v(get_col(f"{ly}Q3", "盈餘")), v(get_col(f"{ly}Q4", "盈餘"))
+                
+                # 🔥 終極防呆：確保只抓絕對盈餘金額，不抓到負的衰退率！
+                eps_q3, eps_q4 = v(get_col(f"{ly}Q3", "盈餘", ex=["增", "率", "%", "比"])), v(get_col(f"{ly}Q4", "盈餘", ex=["增", "率", "%", "比"]))
                 rev_q3 = v(get_col(f"{ly}Q3", "營收", ex=["增", "率", "%"]))
+                
                 op_q4 = v(get_col(f"{ly}Q4", "營益", ex=["率", "%", "增", "每股", "佔"]))
                 nop_q4 = v(get_col(f"{ly}Q4", "業外損益", ex=["率", "%", "增", "每股", "佔"]))
                 op_q3 = v(get_col(f"{ly}Q3", "營益", ex=["率", "%", "增", "每股", "佔"]))
@@ -347,14 +349,14 @@ def fetch_gsheet_data_v182():
                     "rev_this_1": v(get_col(f"{this_y}M01", "營收", ex=["增", "率", "%"])), "rev_this_2": v(get_col(f"{this_y}M02", "營收", ex=["增", "率", "%"])), "rev_this_3": v(get_col(f"{this_y}M03", "營收", ex=["增", "率", "%"])),
                     "rev_this_4": v(get_col(f"{this_y}M04", "營收", ex=["增", "率", "%"])), "rev_this_5": v(get_col(f"{this_y}M05", "營收", ex=["增", "率", "%"])), "rev_this_6": v(get_col(f"{this_y}M06", "營收", ex=["增", "率", "%"])),
                     "base_q_eps": base_eps, "non_op_ratio": non_op_ratio, "base_q_total_rev": base_q_total_rev, 
-                    "actual_q1_eps": v(get_col(f"{this_y}Q1", "盈餘", ex=["增"]) or get_col("今年Q1盈餘", ex=["增"]) or get_col("本年Q1盈餘", ex=["增"]) or get_col("最新Q1EPS", ex=["增"])),
+                    "actual_q1_eps": v(get_col(f"{this_y}Q1", "盈餘", ex=["增", "率", "%", "比"]) or get_col("今年Q1盈餘", ex=["增", "率", "%", "比"]) or get_col("本年Q1盈餘", ex=["增", "率", "%", "比"]) or get_col("最新Q1EPS", ex=["增", "率", "%", "比"])),
                     "ly_q1_rev": v(get_col(f"{ly}Q1", "營收", ex=["增", "%"])), "ly_q2_rev": v(get_col(f"{ly}Q2", "營收", ex=["增", "%"])), "ly_q3_rev": rev_q3, "ly_q4_rev": rev_q4,
                     "y1_q1_rev": v(get_col(f"{y1}Q1", "營收", ex=["增", "%"])), "y1_q2_rev": v(get_col(f"{y1}Q2", "營收", ex=["增", "%"])), "y1_q3_rev": v(get_col(f"{y1}Q3", "營收", ex=["增", "%"])), "y1_q4_rev": v(get_col(f"{y1}Q4", "營收", ex=["增", "%"])),
-                    "eps_q1": v(get_col(f"{ly}Q1", "盈餘")), "eps_q2": v(get_col(f"{ly}Q2", "盈餘")), "eps_q3": eps_q3, "eps_q4": eps_q4,
+                    "eps_q1": v(get_col(f"{ly}Q1", "盈餘", ex=["增", "率", "%", "比"])), "eps_q2": v(get_col(f"{ly}Q2", "盈餘", ex=["增", "率", "%", "比"])), "eps_q3": eps_q3, "eps_q4": eps_q4,
                     "pbr": v(get_col("PBR") or get_col("淨值比")), "div_years": v(get_col("連配次數") or get_col("連續配發")), "orig_per": v(get_col("PER", ex=["前瞻", "預估"])), 
                     "annual_yield": v(get_col("近10年平均合計殖利率") or get_col("年化合計殖利率") or get_col("年化", "殖利率")),
                     "payout": v(get_col("盈餘總分配率") or get_col("分配率")), "price": v(get_col("成交", ex=["量", "值", "比"]) or get_col("股價", ex=["比", "淨值"])), 
-                    "acc_eps": v(get_col("最新累季每股盈餘") or get_col("累季", "盈餘")), 
+                    "acc_eps": v(get_col("最新累季每股盈餘", ex=["增", "率", "%", "比"]) or get_col("累季", "盈餘", ex=["增", "率", "%", "比"])), 
                     "contract_liab": v(get_col("合約負債", ex=["季增"])), 
                     "declared_div": v(get_col("合計股利")),
                     "latest_mom": v(get_col("M%") or get_col("月增", ex=["累計"])), "latest_yoy": v(get_col("Y%") or get_col("年增", ex=["累計"])),
@@ -554,7 +556,7 @@ def render_dataframe(df_source, is_finance=False, is_single=False):
             cols += ["預估今年Q1_EPS", "實際Q1_EPS", "預估今年度_EPS", "最新累季EPS"]
             cols += ["本益比(PER)", "預估年成長率(%)", "運算配息率(%)"]
             cols += ["最新業外佔比(%)", "投信10日天數", "投信10日買賣超", "外資10日天數", "外資10日買賣超"]
-            cols += ["配息基準", "最新季度流動合約負債(億)"] # 移除季增欄位
+            cols += ["配息基準", "最新季度流動合約負債(億)"]
             
         df = df[[c for c in cols if c in df.columns]]
         for c in df.columns:
@@ -622,8 +624,8 @@ if cached_data:
                                 d["base_q_eps"], d.get("non_op_ratio",0), d.get("base_q_total_rev",0), 
                                 d["ly_q1_rev"], d["ly_q2_rev"], d["ly_q3_rev"], d["ly_q4_rev"], 
                                 d["y1_q1_rev"], d["y1_q2_rev"], d["y1_q3_rev"], d["y1_q4_rev"], 
-                                d.get("payout",0), pr, d.get("contract_liab",0), d.get("acc_eps",0), 
-                                d.get("declared_div",0), d.get("actual_q1_eps",0),
+                                d.get("payout",0), pr, d.get("contract_liab",0), 
+                                d.get("acc_eps",0), d.get("declared_div",0), d.get("actual_q1_eps",0),
                                 d.get("latest_mom", 0), d.get("latest_yoy", 0),
                                 d.get("t_days", 0), d.get("t_net_vol", 0),
                                 d.get("f_days", 0), d.get("f_net_vol", 0)
@@ -720,7 +722,6 @@ if cached_data:
                                 span_t = f"<span style='background-color:{bg_t}; color:{co_t}; padding:2px 6px; border-radius:4px; font-weight:bold; white-space:nowrap; font-size:0.95em;'>{chip_t}</span>"
                                 span_f = f"<span style='background-color:{bg_f}; color:{co_f}; padding:2px 6px; border-radius:4px; font-weight:bold; white-space:nowrap; font-size:0.95em;'>{chip_f}</span>"
 
-                                # 🔥 徹底拔除季增率的顯示
                                 st.markdown(
                                     f"📉 業外佔比: {safe_non_op:.2f}% ｜ 📈 合約負債: {liab_value:.2f}億<br>"
                                     f"📊 最新營收 M/Y: <span style='color:{color_m}; font-weight:bold;'>{safe_mom:+.2f}%</span> / <span style='color:{color_y}; font-weight:bold;'>{safe_yoy:+.2f}%</span><br>"
